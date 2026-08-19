@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wikipedia, the free encyclopedia</title>
+    <style>
+        .hidden-el { display: none; }
+        .invisible-el { visibility: hidden; }
+        .zero-size { width: 0; height: 0; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Wikipedia</h1>
+    </header>
+    <main>
+        <div id="search-section">
+            <input type="text" id="searchInput" name="search" placeholder="Search Wikipedia" aria-label="Search Wikipedia">
+            <button id="searchButton" type="submit">Search</button>
+        </div>
+
+        <section id="content">
+            <p>Welcome to Wikipedia, the free encyclopedia that anyone can edit.</p>
+            <a href="https://en.wikipedia.org/wiki/Chromium_(web_browser)" id="featuredLink">Featured Article: Chromium</a>
+        </section>
+
+        <!-- Elements that MUST be filtered out by DOM Pruner -->
+        <div class="hidden-el"><button id="hiddenButton">Should not appear</button></div>
+        <div class="invisible-el"><a href="#" id="invisibleLink">Should not appear</a></div>
+        <div class="zero-size"><input type="hidden" name="csrf" value="12345"></div>
+    </main>
+
+    <script>
+        window.eventLog = [];
+        const btn = document.getElementById('searchButton');
+        const input = document.getElementById('searchInput');
+
+        btn.addEventListener('touchstart', (e) => window.eventLog.push('touchstart'));
+        btn.addEventListener('touchend', (e) => window.eventLog.push('touchend'));
+        btn.addEventListener('click', (e) => window.eventLog.push('click'));
+
+        input.addEventListener('input', (e) => window.eventLog.push('input:' + input.value));
+        input.addEventListener('change', (e) => window.eventLog.push('change:' + input.value));
+    </script>
+</body>
+</html>
