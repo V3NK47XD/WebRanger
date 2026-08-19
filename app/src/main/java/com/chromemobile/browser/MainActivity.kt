@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
@@ -18,6 +19,7 @@ import com.chromemobile.browser.agent.LlmPreferences
 import com.chromemobile.browser.engine.WebViewBrowserEngine
 import com.chromemobile.browser.mcp.MobileChromeMcpServer
 import com.chromemobile.browser.ui.BrowserScreen
+import com.chromemobile.browser.ui.onboarding.OnboardingScreen
 import com.chromemobile.browser.ui.theme.ChromeMobileTheme
 
 class MainActivity : ComponentActivity() {
@@ -29,9 +31,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var llmPreferences: LlmPreferences
 
     private var currentConfig by mutableStateOf(LlmConfig())
+    private var isOnboardingCompleted by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Enable edge-to-edge system bars
+        // Enable modern edge-to-edge system bars
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
@@ -41,9 +44,10 @@ class MainActivity : ComponentActivity() {
         // Initialize Mobile Chrome MCP Server
         mcpServer = MobileChromeMcpServer(browserEngine = browserEngine)
 
-        // Load persisted LLM Preferences
+        // Load persisted LLM Preferences and Onboarding state
         llmPreferences = LlmPreferences(this)
         currentConfig = llmPreferences.loadConfig()
+        isOnboardingCompleted = llmPreferences.isOnboardingCompleted()
 
         // Initialize LLM Client with loaded configuration
         llmClient = LlmClient(config = currentConfig)
@@ -55,9 +59,11 @@ class MainActivity : ComponentActivity() {
             llmClient = llmClient
         )
 
-        // Load starting page
-        val initialUrl = intent?.dataString ?: "https://en.wikipedia.org"
-        browserEngine.loadUrl(initialUrl)
+        // If intent has URL, load it
+        val initialUrl = intent?.dataString
+        if (!initialUrl.isNullOrEmpty()) {
+            browserEngine.loadUrl(initialUrl)
+        }
 
         setContent {
             ChromeMobileTheme {
@@ -65,16 +71,34 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = Color(0xFF0F172A)
                 ) {
-                    BrowserScreen(
-                        browserEngine = browserEngine,
-                        agentCoordinator = agentCoordinator,
-                        currentLlmConfig = currentConfig,
-                        onSaveLlmConfig = { newConfig ->
-                            currentConfig = newConfig
-                            llmPreferences.saveConfig(newConfig)
-                            llmClient.config = newConfig
+                    Crossfade(
+                        targetState = isOnboardingCompleted,
+                        label = "onboarding_crossfade"
+                    ) { completed ->
+                        if (!completed) {
+                            OnboardingScreen(
+                                initialConfig = currentConfig,
+                                onComplete = { finalConfig ->
+                                    currentConfig = finalConfig
+                                    llmPreferences.saveConfig(finalConfig)
+                                    llmPreferences.setOnboardingCompleted(true)
+                                    llmClient.config = finalConfig
+                                    isOnboardingCompleted = true
+                                }
+                            )
+                        } else {
+                            BrowserScreen(
+                                browserEngine = browserEngine,
+                                agentCoordinator = agentCoordinator,
+                                currentLlmConfig = currentConfig,
+                                onSaveLlmConfig = { newConfig ->
+                                    currentConfig = newConfig
+                                    llmPreferences.saveConfig(newConfig)
+                                    llmClient.config = newConfig
+                                }
+                            )
                         }
-                    )
+                    }
                 }
             }
         }

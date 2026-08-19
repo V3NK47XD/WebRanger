@@ -3,24 +3,39 @@ package com.chromemobile.browser.agent
 import android.content.Context
 import android.content.SharedPreferences
 
+enum class SearchEngine(val displayName: String, val searchUrl: String) {
+    GOOGLE("Google", "https://www.google.com/search?q="),
+    DUCKDUCKGO("DuckDuckGo", "https://duckduckgo.com/?q="),
+    BING("Bing", "https://www.bing.com/search?q="),
+    BRAVE("Brave Search", "https://search.brave.com/search?q=")
+}
+
 class LlmPreferences(context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    fun isOnboardingCompleted(): Boolean {
+        return prefs.getBoolean(KEY_ONBOARDING_COMPLETED, false)
+    }
+
+    fun setOnboardingCompleted(completed: Boolean) {
+        prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETED, completed).apply()
+    }
+
     fun loadConfig(): LlmConfig {
-        val providerStr = prefs.getString(KEY_PROVIDER, LlmProvider.OPENAI.name) ?: LlmProvider.OPENAI.name
+        val providerStr = prefs.getString(KEY_PROVIDER, LlmProvider.GEMINI.name) ?: LlmProvider.GEMINI.name
         val provider = try {
             LlmProvider.valueOf(providerStr)
         } catch (e: Exception) {
-            LlmProvider.OPENAI
+            LlmProvider.GEMINI
         }
 
         val apiKey = prefs.getString(KEY_API_KEY, "") ?: ""
         val defaultModel = when (provider) {
+            LlmProvider.GEMINI -> "gemini-2.0-flash"
             LlmProvider.OPENAI -> "gpt-4o"
             LlmProvider.ANTHROPIC -> "claude-3-7-sonnet-20250219"
-            LlmProvider.GEMINI -> "gemini-2.0-flash"
-            LlmProvider.OLLAMA -> "llama3.2"
+            LlmProvider.OLLAMA -> "gemma-4-31b-it"
             LlmProvider.MOCK -> "mock-model"
         }
         val model = prefs.getString(KEY_MODEL, defaultModel) ?: defaultModel
@@ -43,11 +58,26 @@ class LlmPreferences(context: Context) {
             .apply()
     }
 
+    fun getSearchEngine(): SearchEngine {
+        val name = prefs.getString(KEY_SEARCH_ENGINE, SearchEngine.GOOGLE.name) ?: SearchEngine.GOOGLE.name
+        return try {
+            SearchEngine.valueOf(name)
+        } catch (e: Exception) {
+            SearchEngine.GOOGLE
+        }
+    }
+
+    fun setSearchEngine(engine: SearchEngine) {
+        prefs.edit().putString(KEY_SEARCH_ENGINE, engine.name).apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "chrome_mobile_ai_prefs"
+        private const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
         private const val KEY_PROVIDER = "llm_provider"
         private const val KEY_API_KEY = "llm_api_key"
         private const val KEY_MODEL = "llm_model"
         private const val KEY_BASE_URL = "llm_base_url"
+        private const val KEY_SEARCH_ENGINE = "search_engine"
     }
 }
