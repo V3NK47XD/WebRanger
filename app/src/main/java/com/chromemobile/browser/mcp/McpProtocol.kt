@@ -72,6 +72,44 @@ data class McpTool(
             put("input_schema", getInputSchema())
         }
     }
+
+    /**
+     * Convert to Google Gemini Function Declaration Schema
+     */
+    fun toGeminiFunctionDeclaration(): JsonObject {
+        return buildJsonObject {
+            put("name", name)
+            put("description", description)
+            put("parameters", buildJsonObject {
+                put("type", "OBJECT")
+                put("properties", buildJsonObject {
+                    for ((key, prop) in properties) {
+                        put(key, buildJsonObject {
+                            val geminiType = when (prop.type.lowercase()) {
+                                "integer", "int" -> "INTEGER"
+                                "number", "float", "double" -> "NUMBER"
+                                "boolean", "bool" -> "BOOLEAN"
+                                "array" -> "ARRAY"
+                                else -> "STRING"
+                            }
+                            put("type", geminiType)
+                            put("description", prop.description)
+                            if (prop.enumValues != null) {
+                                put("enum", buildJsonArray {
+                                    for (v in prop.enumValues) add(kotlinx.serialization.json.JsonPrimitive(v))
+                                })
+                            }
+                        })
+                    }
+                })
+                if (required.isNotEmpty()) {
+                    put("required", buildJsonArray {
+                        for (r in required) add(kotlinx.serialization.json.JsonPrimitive(r))
+                    })
+                }
+            })
+        }
+    }
 }
 
 @Serializable

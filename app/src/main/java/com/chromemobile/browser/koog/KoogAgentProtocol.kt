@@ -2,7 +2,6 @@ package com.chromemobile.browser.koog
 
 import com.chromemobile.browser.agent.AgentStepLog
 import com.chromemobile.browser.agent.AgentUIState
-import com.chromemobile.browser.agent.ElementRect
 import com.chromemobile.browser.agent.LlmClient
 import com.chromemobile.browser.agent.LlmMessage
 import com.chromemobile.browser.agent.SecurityGuard
@@ -13,9 +12,7 @@ import com.chromemobile.browser.mcp.McpTool
 import com.chromemobile.browser.mcp.MobileChromeMcpServer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -82,6 +79,7 @@ class KoogAIAgent(
         var taskFinished = false
         var finalAnswer = "Task ended."
         var finalSuccess = true
+        var consecutiveTextCount = 0
 
         while (turn <= maxTurns && !taskFinished) {
             while (isPausedProvider()) {
@@ -96,10 +94,10 @@ class KoogAIAgent(
             }
 
             // 1. OBSERVE: Fetch fresh DOM snapshot from browser
-            val observeLog = AgentStepLog(turnNumber = turn, phase = "OBSERVE", message = "Koog Agent observing DOM snapshot...")
+            val observeLog = AgentStepLog(turnNumber = turn, phase = "OBSERVE", message = "Observing mobile page elements...")
             onTurnLog(observeLog)
 
-            // Wait if page is loading
+            // Wait if page is loading from previous navigation
             var loadWaitCount = 0
             while (browserEngine.state.value.isLoading && loadWaitCount < 10) {
                 kotlinx.coroutines.delay(300)
@@ -117,7 +115,7 @@ class KoogAIAgent(
             }
 
             val historySummary = if (pastActionMemory.isNotEmpty()) {
-                "Past Actions Memory:\n" + pastActionMemory.takeLast(5).joinToString("\n") + "\n\n"
+                "Past Actions Memory:\n" + pastActionMemory.takeLast(4).joinToString("\n") + "\n\n"
             } else {
                 ""
             }
@@ -128,7 +126,7 @@ class KoogAIAgent(
                 
                 Goal: "$goal"
                 
-                Choose your next mobile action toolcall. Respond with an MCP tool call (chrome_click_element, chrome_type_text, chrome_scroll, chrome_navigate, or chrome_finish_task).
+                Choose your next mobile action toolcall now.
             """.trimIndent()
 
             val messages = listOf(
@@ -138,7 +136,7 @@ class KoogAIAgent(
 
             // 2. REASON: Query LLM via Koog Prompt Executor
             uiStateFlow.update { it.copy(status = com.chromemobile.browser.agent.AgentStatus.REASONING, currentReasoning = "") }
-            val reasonLog = AgentStepLog(turnNumber = turn, phase = "REASON", message = "Koog ReAct reasoning on next action...")
+            val reasonLog = AgentStepLog(turnNumber = turn, phase = "REASON", message = "Reasoning on next action...")
             onTurnLog(reasonLog)
 
             val llmResponse = llmClient.chatCompletion(
@@ -157,24 +155,35 @@ class KoogAIAgent(
             if (toolCalls.isEmpty()) {
                 val directText = llmResponse.content ?: ""
                 onTurnLog(AgentStepLog(turnNumber = turn, phase = "THOUGHT", message = directText))
+                consecutiveTextCount++
 
-                if (turn < maxTurns) {
-                    pastActionMemory.add("Turn $turn: Model replied with text -> \"$directText\"")
-                    turn++
-                    kotlinx.coroutines.delay(600)
-                    continue
-                } else {
+                // If model answered the question or provided a summary, or if 2 consecutive text turns occurred, finish gracefully
+                if (consecutiveTextCount >= 2 ||
+                    directText.contains("summary", ignoreCase = true) ||
+                    directText.contains("result", ignoreCase = true) ||
+                    directText.contains("found", ignoreCase = true) ||
+                    directText.contains("here is", ignoreCase = true) ||
+                    turn >= 4
+                ) {
                     taskFinished = true
                     finalAnswer = directText
+                    onTurnLog(AgentStepLog(turnNumber = turn, phase = "FINISH", message = directText))
                     break
                 }
+
+                pastActionMemory.add("Turn $turn: AI stated \"$directText\"")
+                turn++
+                kotlinx.coroutines.delay(600)
+                continue
             }
+
+            consecutiveTextCount = 0
 
             // 3. ACT: Execute Koog Tools
             uiStateFlow.update { it.copy(status = com.chromemobile.browser.agent.AgentStatus.ACTING) }
 
             for (toolCall in toolCalls) {
-                onTurnLog(AgentStepLog(turnNumber = turn, phase = "ACTION", message = "Executing Koog Tool: ${toolCall.name} (args: ${toolCall.arguments})"))
+                onTurnLog(AgentStepLog(turnNumber = turn, phase = "ACTION", message = "Calling MCP Tool: ${toolCall.name} (args: ${toolCall.arguments})"))
 
                 // Security check
                 if (toolCall.name.contains("type_text")) {

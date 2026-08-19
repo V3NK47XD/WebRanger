@@ -312,7 +312,7 @@ class LlmClient(
     }
 
     /**
-     * Google Gemini API with Function Declarations & Text Fallback
+     * Google Gemini API with Native Function Declarations & Text Fallback
      */
     private fun callGemini(
         messages: List<LlmMessage>,
@@ -343,6 +343,19 @@ class LlmClient(
                     })
                 }
             })
+
+            // PROPERLY ATTACH MCP TOOLS AS GEMINI FUNCTION DECLARATIONS
+            if (tools.isNotEmpty()) {
+                put("tools", buildJsonArray {
+                    add(buildJsonObject {
+                        put("functionDeclarations", buildJsonArray {
+                            for (tool in tools) {
+                                add(tool.toGeminiFunctionDeclaration())
+                            }
+                        })
+                    })
+                })
+            }
 
             put("generationConfig", buildJsonObject {
                 put("temperature", 0.1)
@@ -394,6 +407,7 @@ class LlmClient(
             }
         }
 
+        // Fallback: If Gemini generated toolcall as text, extract it
         if (parsedToolCalls.isEmpty() && textContent.isNotEmpty()) {
             parsedToolCalls.addAll(extractToolCallsFromText(textContent))
         }
