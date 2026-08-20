@@ -4,10 +4,9 @@ import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.runtime.key
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
@@ -61,6 +60,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -231,18 +231,27 @@ fun BrowserScreen(
                 }
             }
 
-            // Unified Bottom Dock (Attached Omnibox + Bottom Navbar) - Lifts with IME Keyboard
+            // Unified Translucent Glassmorphic Bottom Dock
             Surface(
-                color = Color(0xFF1E293B),
-                shadowElevation = 14.dp,
-                border = BorderStroke(1.dp, Color(0xFF334155)),
+                color = Color(0xCC0F172A),
+                shadowElevation = 16.dp,
+                border = BorderStroke(1.dp, Color(0x6694A3B8)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .imePadding()
                     .navigationBarsPadding()
             ) {
                 Box(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color(0xD91E293B),
+                                    Color(0xF20F172A)
+                                )
+                            )
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
@@ -259,10 +268,10 @@ fun BrowserScreen(
                                 trackColor = Color.Transparent
                             )
                         } else {
-                            HorizontalDivider(color = Color(0xFF334155), thickness = 0.5.dp)
+                            HorizontalDivider(color = Color(0x44475569), thickness = 0.5.dp)
                         }
 
-                        // Row 1: Bottom URL Omnibox Bar (Omnibox + Reload + Tab Button)
+                        // Row 1: Bottom URL Omnibox Bar (Scroll-aware collapsible with translucent glass styling)
                         AnimatedVisibility(
                             visible = isUrlBarVisible,
                             enter = expandVertically() + fadeIn(),
@@ -274,11 +283,11 @@ fun BrowserScreen(
                                     .padding(horizontal = 8.dp, vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Omnibox text field with clear outline & border
+                                // Omnibox text field with translucent frosted glass outline
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
-                                    color = Color(0xFF0F172A),
-                                    border = BorderStroke(1.dp, Color(0xFF475569)),
+                                    color = Color(0xCC0B1120),
+                                    border = BorderStroke(1.dp, Color(0x8064748B)),
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(omniboxHeight)
@@ -341,11 +350,11 @@ fun BrowserScreen(
 
                                 Spacer(modifier = Modifier.width(6.dp))
 
-                                // Reload Button (Outside text field, clearly visible with border)
+                                // Reload Button (Translucent glass tile)
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xFF0F172A),
-                                    border = BorderStroke(1.dp, Color(0xFF334155)),
+                                    color = Color(0x990F172A),
+                                    border = BorderStroke(1.dp, Color(0x6664748B)),
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clickable { browserEngine.reload() }
@@ -362,11 +371,11 @@ fun BrowserScreen(
 
                                 Spacer(modifier = Modifier.width(4.dp))
 
-                                // Tab Button [ N ] (Replaces settings in row 1, shows active tabs count)
+                                // Tab Button [ N ] (Translucent glass tile)
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xFF0F172A),
-                                    border = BorderStroke(1.dp, if (tabs.size > 1) BluePrimary else Color(0xFF475569)),
+                                    color = Color(0x990F172A),
+                                    border = BorderStroke(1.dp, if (tabs.size > 1) BluePrimary.copy(alpha = 0.8f) else Color(0x6664748B)),
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clickable {
@@ -392,7 +401,7 @@ fun BrowserScreen(
                                 .fillMaxWidth()
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            // Left: Back & Forward navigation buttons with clear outlines
+                            // Left: Back & Forward navigation buttons with translucent glass outlines
                             Row(
                                 modifier = Modifier.align(Alignment.CenterStart),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -400,8 +409,8 @@ fun BrowserScreen(
                             ) {
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xFF0F172A),
-                                    border = BorderStroke(1.dp, if (browserState.canGoBack) Color(0xFF475569) else Color(0xFF334155)),
+                                    color = Color(0x990F172A),
+                                    border = BorderStroke(1.dp, if (browserState.canGoBack) Color(0x8094A3B8) else Color(0x33475569)),
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clickable(enabled = browserState.canGoBack) { browserEngine.goBack() }
@@ -418,8 +427,8 @@ fun BrowserScreen(
 
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xFF0F172A),
-                                    border = BorderStroke(1.dp, if (browserState.canGoForward) Color(0xFF475569) else Color(0xFF334155)),
+                                    color = Color(0x990F172A),
+                                    border = BorderStroke(1.dp, if (browserState.canGoForward) Color(0x8094A3B8) else Color(0x33475569)),
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clickable(enabled = browserState.canGoForward) { browserEngine.goForward() }
@@ -461,8 +470,8 @@ fun BrowserScreen(
                                     .widthIn(min = 135.dp, max = 175.dp)
                                     .clickable { showAgentOverlay = !showAgentOverlay },
                                 shape = RoundedCornerShape(18.dp),
-                                color = Color(0xFF0F172A),
-                                border = BorderStroke(1.2.dp, if (isAgentWorking) AgentAccent else AgentPurple.copy(alpha = 0.85f)),
+                                color = Color.Transparent,
+                                border = BorderStroke(1.2.dp, if (isAgentWorking) AgentAccent else AgentPurple.copy(alpha = 0.9f)),
                                 shadowElevation = if (isAgentWorking) 6.dp else 2.dp
                             ) {
                                 Row(
@@ -470,9 +479,9 @@ fun BrowserScreen(
                                         .fillMaxSize()
                                         .background(
                                             brush = if (isAgentWorking) {
-                                                Brush.horizontalGradient(listOf(AgentPurple, BluePrimary))
+                                                Brush.horizontalGradient(listOf(Color(0xE67C3AED), Color(0xE62563EB)))
                                             } else {
-                                                Brush.horizontalGradient(listOf(Color(0xFF1E1B4B), Color(0xFF0F172A)))
+                                                Brush.horizontalGradient(listOf(Color(0xCC1E1B4B), Color(0xCC0F172A)))
                                             }
                                         )
                                         .padding(horizontal = 10.dp),
@@ -513,11 +522,11 @@ fun BrowserScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                // Settings Button (Moved to Row 2 Navbar)
+                                // Settings Button
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xFF0F172A),
-                                    border = BorderStroke(1.dp, Color(0xFF334155)),
+                                    color = Color(0x990F172A),
+                                    border = BorderStroke(1.dp, Color(0x6664748B)),
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clickable { showSettingsScreen = true }
@@ -536,8 +545,8 @@ fun BrowserScreen(
                                 Box {
                                     Surface(
                                         shape = RoundedCornerShape(10.dp),
-                                        color = Color(0xFF0F172A),
-                                        border = BorderStroke(1.dp, Color(0xFF334155)),
+                                        color = Color(0x990F172A),
+                                        border = BorderStroke(1.dp, Color(0x6664748B)),
                                         modifier = Modifier
                                             .size(36.dp)
                                             .clickable { isDevMenuExpanded = !isDevMenuExpanded }
