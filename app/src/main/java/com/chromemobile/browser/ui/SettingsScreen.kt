@@ -7,11 +7,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.BorderStroke
-import com.chromemobile.browser.agent.LlmPreferences
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -102,6 +102,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.chromemobile.browser.agent.LlmConfig
+import com.chromemobile.browser.agent.LlmPreferences
 import com.chromemobile.browser.agent.LlmProvider
 import com.chromemobile.browser.agent.SearchEngine
 import com.chromemobile.browser.engine.WebViewBrowserEngine
@@ -110,10 +111,13 @@ import com.chromemobile.browser.password.SavedCredential
 import com.chromemobile.browser.preferences.BrowserPreferences
 import com.chromemobile.browser.preferences.CookiePolicy
 import com.chromemobile.browser.preferences.SafeBrowsingLevel
-import com.chromemobile.browser.ui.theme.AgentAccent
-import com.chromemobile.browser.ui.theme.AgentPurple
-import com.chromemobile.browser.ui.theme.BluePrimary
+import com.chromemobile.browser.ui.theme.AmoledBlack
+import com.chromemobile.browser.ui.theme.AmoledBorder
+import com.chromemobile.browser.ui.theme.AmoledCard
+import com.chromemobile.browser.ui.theme.AmoledSurface
+import com.chromemobile.browser.ui.theme.BlueishGreen
 import com.chromemobile.browser.ui.theme.ErrorRed
+import com.chromemobile.browser.ui.theme.HotPink
 import com.chromemobile.browser.ui.theme.SuccessGreen
 
 enum class SettingsSubpage {
@@ -150,7 +154,7 @@ fun SettingsScreen(
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding(),
-        color = Color(0xFF0B1120)
+        color = AmoledBlack
     ) {
         when (activeSubpage) {
             SettingsSubpage.MAIN -> {
@@ -238,424 +242,468 @@ private fun MainSettingsList(
     var isApiKeyVisible by remember { mutableStateOf(false) }
     var isProviderDropdownExpanded by remember { mutableStateOf(false) }
 
-    val defaultModels = mapOf(
-        LlmProvider.OPENAI to listOf("gpt-4o", "gpt-4o-mini", "gpt-4-turbo"),
-        LlmProvider.ANTHROPIC to listOf("claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"),
-        LlmProvider.GEMINI to listOf("gemini-2.0-flash", "gemini-2.0-pro-exp", "gemini-1.5-pro"),
-        LlmProvider.OLLAMA to listOf("llama3.2", "mistral", "qwen2.5"),
-        LlmProvider.MOCK to listOf("mock-model")
-    )
-
     val savedCredsCount = remember(passwordManager) { passwordManager.getAllCredentials().size }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF0F172A))
-    ) {
-        // App Bar
-        Surface(
-            color = Color(0xFF1E293B),
-            shadowElevation = 4.dp
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onClose) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Color.White
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Settings",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
-        }
-
-        // Scrollable settings list
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier
+                .widthIn(max = 680.dp)
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 32.dp)
+                .background(AmoledBlack)
         ) {
-
-            // Section: Basics
-            SettingsSectionHeader(title = "Basics")
-
-            SettingsNavigationRow(
-                icon = Icons.Default.Search,
-                title = "Search engine",
-                subtitle = browserPreferences.searchEngine.displayName,
-                onClick = { onNavigateSubpage(SettingsSubpage.SEARCH_ENGINE) }
-            )
-
-            SettingsNavigationRow(
-                icon = Icons.Default.Key,
-                title = "Password Manager",
-                subtitle = "$savedCredsCount saved passwords",
-                onClick = { onNavigateSubpage(SettingsSubpage.PASSWORDS) }
-            )
-
-            SettingsSwitchRow(
-                icon = Icons.Default.Lock,
-                title = "Offer to save passwords",
-                subtitle = "Save passwords for sites automatically",
-                checked = savePasswordsEnabled,
-                onCheckedChange = {
-                    savePasswordsEnabled = it
-                    browserPreferences.savePasswordsEnabled = it
-                }
-            )
-
-            SettingsSwitchRow(
-                icon = Icons.Default.Check,
-                title = "Auto Sign-in",
-                subtitle = "Automatically sign in to websites using stored credentials",
-                checked = autoSignInEnabled,
-                onCheckedChange = {
-                    autoSignInEnabled = it
-                    browserPreferences.autoSignInEnabled = it
-                }
-            )
-
-            HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
-
-            // Section: Privacy and Security
-            SettingsSectionHeader(title = "Privacy and security")
-
-            SettingsNavigationRow(
-                icon = Icons.Default.Delete,
-                title = "Clear browsing data",
-                subtitle = "Clear history, cookies, cache, passwords & data",
-                tint = ErrorRed,
-                onClick = onOpenClearData
-            )
-
-            SettingsNavigationRow(
-                icon = Icons.Default.Cookie,
-                title = "Third-party cookies",
-                subtitle = browserPreferences.cookiePolicy.displayName,
-                onClick = { onNavigateSubpage(SettingsSubpage.COOKIE_POLICY) }
-            )
-
-            SettingsNavigationRow(
-                icon = Icons.Default.Shield,
-                title = "Safe Browsing",
-                subtitle = browserPreferences.safeBrowsingLevel.displayName,
-                onClick = { onNavigateSubpage(SettingsSubpage.SAFE_BROWSING) }
-            )
-
-            SettingsSwitchRow(
-                icon = Icons.Default.Security,
-                title = "Always use secure connections (HTTPS)",
-                subtitle = "Upgrade navigations to HTTPS and warn before loading insecure sites",
-                checked = httpsFirstMode,
-                onCheckedChange = {
-                    httpsFirstMode = it
-                    browserPreferences.httpsFirstMode = it
-                }
-            )
-
-            SettingsSwitchRow(
-                icon = Icons.Default.Public,
-                title = "Send \"Do Not Track\" request",
-                subtitle = "Include a DNT header with your browsing traffic",
-                checked = doNotTrack,
-                onCheckedChange = {
-                    doNotTrack = it
-                    browserPreferences.doNotTrack = it
-                }
-            )
-
-            HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
-
-            // Section: Accessibility & Display (Zoom factor 80% default)
-            SettingsSectionHeader(title = "Accessibility & Display")
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B))
+            // App Bar
+            Surface(
+                color = AmoledSurface,
+                shadowElevation = 4.dp,
+                border = BorderStroke(1.dp, AmoledBorder)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.ZoomIn, contentDescription = null, tint = AgentAccent, modifier = Modifier.size(22.dp))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text("Default Zoom Factor", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                                Text("Sets text and page zoom scaling for all webpages", color = Color(0xFF94A3B8), fontSize = 12.sp)
-                            }
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (zoomFactor == 80) AgentPurple.copy(alpha = 0.4f) else BluePrimary.copy(alpha = 0.3f)
-                        ) {
-                            Text(
-                                text = if (zoomFactor == 80) "80% (Default)" else "$zoomFactor%",
-                                color = if (zoomFactor == 80) AgentAccent else Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Slider(
-                        value = zoomFactor.toFloat(),
-                        onValueChange = {
-                            zoomFactor = it.toInt()
-                            browserPreferences.zoomFactor = zoomFactor
-                            browserEngine.setZoomFactor(zoomFactor)
-                        },
-                        valueRange = 50f..200f,
-                        steps = 14,
-                        colors = SliderDefaults.colors(
-                            thumbColor = AgentAccent,
-                            activeTrackColor = BluePrimary,
-                            inactiveTrackColor = Color(0xFF334155)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onClose) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
                         )
-                    )
-
-                    // Quick zoom preset chips (Scrollable & Responsive)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf(50, 75, 80, 100, 125, 150, 175, 200).forEach { preset ->
-                            val isSelected = zoomFactor == preset
-                            Surface(
-                                modifier = Modifier.clickable {
-                                    zoomFactor = preset
-                                    browserPreferences.zoomFactor = preset
-                                    browserEngine.setZoomFactor(preset)
-                                },
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) AgentPurple else Color(0xFF0F172A),
-                                border = BorderStroke(1.dp, if (isSelected) AgentAccent else Color(0xFF334155))
-                            ) {
-                                Text(
-                                    text = if (preset == 80) "80% (Default)" else "$preset%",
-                                    color = if (isSelected) Color.White else Color(0xFF94A3B8),
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
                     }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Settings",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
             }
 
-            SettingsSwitchRow(
-                icon = Icons.Default.DesktopWindows,
-                title = "Desktop site by default",
-                subtitle = "Request desktop version of websites",
-                checked = desktopSiteMode,
-                onCheckedChange = {
-                    desktopSiteMode = it
-                    browserPreferences.desktopSiteMode = it
-                    browserEngine.applyPreferences(browserPreferences)
-                }
-            )
-
-            SettingsSwitchRow(
-                icon = Icons.Default.DarkMode,
-                title = "Dark theme for web contents",
-                subtitle = "Apply dark mode styling to webpages automatically",
-                checked = forceDarkMode,
-                onCheckedChange = {
-                    forceDarkMode = it
-                    browserPreferences.forceDarkMode = it
-                    browserEngine.applyPreferences(browserPreferences)
-                }
-            )
-
-            HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
-
-            // Section: Site Settings
-            SettingsSectionHeader(title = "Site settings & Permissions")
-
-            SettingsSwitchRow(
-                icon = Icons.Default.Code,
-                title = "JavaScript",
-                subtitle = "Allowed (recommended for interactive sites)",
-                checked = javascriptEnabled,
-                onCheckedChange = {
-                    javascriptEnabled = it
-                    browserPreferences.javascriptEnabled = it
-                    browserEngine.applyPreferences(browserPreferences)
-                }
-            )
-
-            SettingsSwitchRow(
-                icon = Icons.Default.Storage,
-                title = "DOM & Local Storage",
-                subtitle = "Allow websites to store client-side app data",
-                checked = domStorageEnabled,
-                onCheckedChange = {
-                    domStorageEnabled = it
-                    browserPreferences.domStorageEnabled = it
-                    browserEngine.applyPreferences(browserPreferences)
-                }
-            )
-
-            SettingsSwitchRow(
-                icon = Icons.Default.Language,
-                title = "Pop-ups and redirects",
-                subtitle = if (popupsEnabled) "Allowed" else "Blocked (recommended)",
-                checked = popupsEnabled,
-                onCheckedChange = {
-                    popupsEnabled = it
-                    browserPreferences.popupsEnabled = it
-                    browserEngine.applyPreferences(browserPreferences)
-                }
-            )
-
-            HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
-
-            // Section: AI Agent & MCP Server
-            SettingsSectionHeader(title = "AI Agent & MCP Toolcalling")
-
-            Card(
+            // Scrollable settings list
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B))
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 32.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    // Password sharing toggle
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+
+                // Section: Basics
+                SettingsSectionHeader(title = "Basics")
+
+                SettingsNavigationRow(
+                    icon = Icons.Default.Search,
+                    title = "Search engine",
+                    subtitle = browserPreferences.searchEngine.displayName,
+                    tint = BlueishGreen,
+                    onClick = { onNavigateSubpage(SettingsSubpage.SEARCH_ENGINE) }
+                )
+
+                SettingsNavigationRow(
+                    icon = Icons.Default.Key,
+                    title = "Password Manager",
+                    subtitle = "$savedCredsCount saved passwords",
+                    tint = HotPink,
+                    onClick = { onNavigateSubpage(SettingsSubpage.PASSWORDS) }
+                )
+
+                SettingsSwitchRow(
+                    icon = Icons.Default.Lock,
+                    title = "Offer to save passwords",
+                    subtitle = "Save passwords for sites automatically",
+                    checked = savePasswordsEnabled,
+                    onCheckedChange = {
+                        savePasswordsEnabled = it
+                        browserPreferences.savePasswordsEnabled = it
+                    }
+                )
+
+                SettingsSwitchRow(
+                    icon = Icons.Default.Check,
+                    title = "Auto Sign-in",
+                    subtitle = "Automatically sign in to websites using stored credentials",
+                    checked = autoSignInEnabled,
+                    onCheckedChange = {
+                        autoSignInEnabled = it
+                        browserPreferences.autoSignInEnabled = it
+                    }
+                )
+
+                HorizontalDivider(color = AmoledBorder, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
+
+                // Section: Privacy and Security
+                SettingsSectionHeader(title = "Privacy and security")
+
+                SettingsNavigationRow(
+                    icon = Icons.Default.Delete,
+                    title = "Clear browsing data",
+                    subtitle = "Clear history, cookies, cache, passwords & data",
+                    tint = ErrorRed,
+                    onClick = onOpenClearData
+                )
+
+                SettingsNavigationRow(
+                    icon = Icons.Default.Cookie,
+                    title = "Third-party cookies",
+                    subtitle = browserPreferences.cookiePolicy.displayName,
+                    tint = BlueishGreen,
+                    onClick = { onNavigateSubpage(SettingsSubpage.COOKIE_POLICY) }
+                )
+
+                SettingsNavigationRow(
+                    icon = Icons.Default.Shield,
+                    title = "Safe Browsing",
+                    subtitle = browserPreferences.safeBrowsingLevel.displayName,
+                    tint = HotPink,
+                    onClick = { onNavigateSubpage(SettingsSubpage.SAFE_BROWSING) }
+                )
+
+                SettingsSwitchRow(
+                    icon = Icons.Default.Security,
+                    title = "Always use secure connections (HTTPS)",
+                    subtitle = "Upgrade navigations to HTTPS and warn before loading insecure sites",
+                    checked = httpsFirstMode,
+                    onCheckedChange = {
+                        httpsFirstMode = it
+                        browserPreferences.httpsFirstMode = it
+                    }
+                )
+
+                SettingsSwitchRow(
+                    icon = Icons.Default.Public,
+                    title = "Send \"Do Not Track\" request",
+                    subtitle = "Include a DNT header with your browsing traffic",
+                    checked = doNotTrack,
+                    onCheckedChange = {
+                        doNotTrack = it
+                        browserPreferences.doNotTrack = it
+                    }
+                )
+
+                HorizontalDivider(color = AmoledBorder, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
+
+                // Section: Accessibility & Display (Zoom factor 80% default)
+                SettingsSectionHeader(title = "Accessibility & Display")
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = AmoledCard),
+                    border = BorderStroke(1.dp, AmoledBorder)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Row(
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Key, contentDescription = null, tint = AgentAccent, modifier = Modifier.size(24.dp))
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.ZoomIn, contentDescription = null, tint = BlueishGreen, modifier = Modifier.size(22.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text("Default Zoom Factor", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                                    Text("Sets text and page zoom scaling for all webpages", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                                }
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (zoomFactor == 80) BlueishGreen.copy(alpha = 0.2f) else AmoledBlack,
+                                border = BorderStroke(1.dp, if (zoomFactor == 80) BlueishGreen else AmoledBorder)
+                            ) {
                                 Text(
-                                    text = "Allow AI & MCP tools to access saved passwords",
-                                    color = Color.White,
+                                    text = if (zoomFactor == 80) "80% (Default)" else "$zoomFactor%",
+                                    color = if (zoomFactor == 80) BlueishGreen else Color.White,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
-                                Text(
-                                    text = "When enabled, the autonomous AI agent and DevTools MCP server can read stored passwords and autofill login forms via toolcalls.",
-                                    color = Color(0xFF94A3B8),
-                                    fontSize = 11.sp
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
                             }
                         }
-                        Switch(
-                            checked = sharePasswordsWithLlm,
-                            onCheckedChange = {
-                                sharePasswordsWithLlm = it
-                                browserPreferences.sharePasswordsWithLlm = it
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Slider(
+                            value = zoomFactor.toFloat(),
+                            onValueChange = {
+                                zoomFactor = it.toInt()
+                                browserPreferences.zoomFactor = zoomFactor
+                                browserEngine.setZoomFactor(zoomFactor)
                             },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = AgentPurple
+                            valueRange = 50f..200f,
+                            steps = 14,
+                            colors = SliderDefaults.colors(
+                                thumbColor = HotPink,
+                                activeTrackColor = BlueishGreen,
+                                inactiveTrackColor = AmoledBorder
                             )
                         )
-                    }
 
-                    Spacer(modifier = Modifier.height(16.dp))
-                    HorizontalDivider(color = Color(0xFF334155), thickness = 1.dp)
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Model Provider Dropdown
-                    Text("LLM Model Provider", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        Surface(
+                        // Quick zoom preset chips (Scrollable & Responsive)
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { isProviderDropdownExpanded = true },
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFF0F172A)
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(text = selectedProvider.name, color = Color.White, fontWeight = FontWeight.Medium)
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Select", tint = Color.White)
-                            }
-                        }
-
-                        DropdownMenu(
-                            expanded = isProviderDropdownExpanded,
-                            onDismissRequest = { isProviderDropdownExpanded = false },
-                            modifier = Modifier.background(Color(0xFF1E293B))
-                        ) {
-                            LlmProvider.values().forEach { provider ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = provider.name,
-                                            color = if (selectedProvider == provider) AgentAccent else Color.White
-                                        )
+                            listOf(50, 75, 80, 100, 125, 150, 175, 200).forEach { preset ->
+                                val isSelected = zoomFactor == preset
+                                Surface(
+                                    modifier = Modifier.clickable {
+                                        zoomFactor = preset
+                                        browserPreferences.zoomFactor = preset
+                                        browserEngine.setZoomFactor(preset)
                                     },
-                                    onClick = {
-                                        selectedProvider = provider
-                                        isProviderDropdownExpanded = false
-                                        val suggestedModel = defaultModels[provider]?.firstOrNull() ?: "default"
-                                        model = suggestedModel
-                                        if (provider == LlmProvider.OLLAMA && baseUrl.isEmpty()) {
-                                            baseUrl = "http://10.0.2.2:11434/v1"
-                                        }
-                                        onSaveLlmConfig(
-                                            LlmConfig(
-                                                provider = selectedProvider,
-                                                apiKey = apiKey.trim(),
-                                                model = model.trim(),
-                                                baseUrl = baseUrl.trim()
-                                            )
-                                        )
-                                    }
-                                )
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) BlueishGreen.copy(alpha = 0.2f) else AmoledBlack,
+                                    border = BorderStroke(1.dp, if (isSelected) BlueishGreen else AmoledBorder)
+                                ) {
+                                    Text(
+                                        text = if (preset == 80) "80% (Default)" else "$preset%",
+                                        color = if (isSelected) BlueishGreen else Color(0xFF94A3B8),
+                                        fontSize = 11.5.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    )
+                                }
                             }
                         }
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                SettingsSwitchRow(
+                    icon = Icons.Default.DesktopWindows,
+                    title = "Desktop site by default",
+                    subtitle = "Request desktop version of websites",
+                    checked = desktopSiteMode,
+                    onCheckedChange = {
+                        desktopSiteMode = it
+                        browserPreferences.desktopSiteMode = it
+                        browserEngine.applyPreferences(browserPreferences)
+                    }
+                )
 
-                    // API Key Field
-                    if (selectedProvider != LlmProvider.MOCK) {
-                        Text("API Key", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                SettingsSwitchRow(
+                    icon = Icons.Default.DarkMode,
+                    title = "Dark theme for web contents",
+                    subtitle = "Apply dark mode styling to webpages automatically",
+                    checked = forceDarkMode,
+                    onCheckedChange = {
+                        forceDarkMode = it
+                        browserPreferences.forceDarkMode = it
+                        browserEngine.applyPreferences(browserPreferences)
+                    }
+                )
+
+                HorizontalDivider(color = AmoledBorder, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
+
+                // Section: Site Settings
+                SettingsSectionHeader(title = "Site settings & Permissions")
+
+                SettingsSwitchRow(
+                    icon = Icons.Default.Code,
+                    title = "JavaScript",
+                    subtitle = "Allowed (recommended for interactive sites)",
+                    checked = javascriptEnabled,
+                    onCheckedChange = {
+                        javascriptEnabled = it
+                        browserPreferences.javascriptEnabled = it
+                        browserEngine.applyPreferences(browserPreferences)
+                    }
+                )
+
+                SettingsSwitchRow(
+                    icon = Icons.Default.Storage,
+                    title = "DOM & Local Storage",
+                    subtitle = "Allow websites to store client-side app data",
+                    checked = domStorageEnabled,
+                    onCheckedChange = {
+                        domStorageEnabled = it
+                        browserPreferences.domStorageEnabled = it
+                        browserEngine.applyPreferences(browserPreferences)
+                    }
+                )
+
+                SettingsSwitchRow(
+                    icon = Icons.Default.Language,
+                    title = "Pop-ups and redirects",
+                    subtitle = if (popupsEnabled) "Allowed" else "Blocked (recommended)",
+                    checked = popupsEnabled,
+                    onCheckedChange = {
+                        popupsEnabled = it
+                        browserPreferences.popupsEnabled = it
+                        browserEngine.applyPreferences(browserPreferences)
+                    }
+                )
+
+                HorizontalDivider(color = AmoledBorder, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
+
+                // Section: AI Agent & MCP Server
+                SettingsSectionHeader(title = "AI Agent & MCP Toolcalling")
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = AmoledCard),
+                    border = BorderStroke(1.dp, AmoledBorder)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        // Password sharing toggle
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Key, contentDescription = null, tint = HotPink, modifier = Modifier.size(24.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Allow AI & MCP tools to access saved passwords",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "When enabled, the autonomous AI agent and DevTools MCP server can read stored passwords and autofill login forms via toolcalls.",
+                                        color = Color(0xFF94A3B8),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                            Switch(
+                                checked = sharePasswordsWithLlm,
+                                onCheckedChange = {
+                                    sharePasswordsWithLlm = it
+                                    browserPreferences.sharePasswordsWithLlm = it
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = AmoledBlack,
+                                    checkedTrackColor = HotPink
+                                )
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider(color = AmoledBorder, thickness = 1.dp)
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Model Provider Dropdown
+                        Text("LLM Model Provider", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { isProviderDropdownExpanded = true },
+                                shape = RoundedCornerShape(10.dp),
+                                color = AmoledBlack,
+                                border = BorderStroke(1.dp, AmoledBorder)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(text = selectedProvider.name, color = Color.White, fontWeight = FontWeight.Medium)
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = "Select", tint = Color.White)
+                                }
+                            }
+
+                            DropdownMenu(
+                                expanded = isProviderDropdownExpanded,
+                                onDismissRequest = { isProviderDropdownExpanded = false },
+                                modifier = Modifier.background(Color(0xFF0F1218))
+                            ) {
+                                LlmProvider.values().forEach { provider ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = provider.name,
+                                                color = if (selectedProvider == provider) BlueishGreen else Color.White
+                                            )
+                                        },
+                                        onClick = {
+                                            selectedProvider = provider
+                                            isProviderDropdownExpanded = false
+                                            val suggestedModel = llmPreferences.getDefaultModelForProvider(provider)
+                                            model = suggestedModel
+                                            if (provider == LlmProvider.OLLAMA && baseUrl.isEmpty()) {
+                                                baseUrl = "http://10.0.2.2:11434/v1"
+                                            }
+                                            onSaveLlmConfig(
+                                                LlmConfig(
+                                                    provider = selectedProvider,
+                                                    apiKey = apiKey.trim(),
+                                                    model = model.trim(),
+                                                    baseUrl = baseUrl.trim()
+                                                )
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // API Key Field
+                        if (selectedProvider != LlmProvider.MOCK) {
+                            Text("API Key", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            OutlinedTextField(
+                                value = apiKey,
+                                onValueChange = {
+                                    apiKey = it
+                                    onSaveLlmConfig(
+                                        LlmConfig(
+                                            provider = selectedProvider,
+                                            apiKey = apiKey.trim(),
+                                            model = model.trim(),
+                                            baseUrl = baseUrl.trim()
+                                        )
+                                    )
+                                },
+                                placeholder = { Text("sk-...", color = Color(0xFF64748B)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                singleLine = true,
+                                leadingIcon = { Icon(Icons.Default.Key, contentDescription = "API Key", tint = HotPink) },
+                                trailingIcon = {
+                                    IconButton(onClick = { isApiKeyVisible = !isApiKeyVisible }) {
+                                        Icon(
+                                            imageVector = if (isApiKeyVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                            contentDescription = "Toggle Visibility",
+                                            tint = Color(0xFF94A3B8)
+                                        )
+                                    }
+                                },
+                                visualTransformation = if (isApiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = HotPink,
+                                    unfocusedBorderColor = AmoledBorder,
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+
+                        // Model Name Field
+                        Text("Model Name", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(4.dp))
                         OutlinedTextField(
-                            value = apiKey,
+                            value = model,
                             onValueChange = {
-                                apiKey = it
+                                model = it
                                 onSaveLlmConfig(
                                     LlmConfig(
                                         provider = selectedProvider,
@@ -665,168 +713,134 @@ private fun MainSettingsList(
                                     )
                                 )
                             },
-                            placeholder = { Text("sk-...", color = Color(0xFF64748B)) },
+                            placeholder = { Text("e.g. gpt-4o, claude-3-7-sonnet", color = Color(0xFF64748B)) },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
                             singleLine = true,
-                            leadingIcon = { Icon(Icons.Default.Key, contentDescription = "API Key", tint = Color(0xFF94A3B8)) },
-                            trailingIcon = {
-                                IconButton(onClick = { isApiKeyVisible = !isApiKeyVisible }) {
-                                    Icon(
-                                        imageVector = if (isApiKeyVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                        contentDescription = "Toggle Visibility",
-                                        tint = Color(0xFF94A3B8)
-                                    )
-                                }
-                            },
-                            visualTransformation = if (isApiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = AgentPurple,
-                                unfocusedBorderColor = Color(0xFF334155),
+                                focusedBorderColor = BlueishGreen,
+                                unfocusedBorderColor = AmoledBorder,
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White
                             )
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
 
-                    // Model Name Field
-                    Text("Model Name", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    OutlinedTextField(
-                        value = model,
-                        onValueChange = {
-                            model = it
-                            onSaveLlmConfig(
-                                LlmConfig(
-                                    provider = selectedProvider,
-                                    apiKey = apiKey.trim(),
-                                    model = model.trim(),
-                                    baseUrl = baseUrl.trim()
-                                )
-                            )
-                        },
-                        placeholder = { Text("e.g. gpt-4o, claude-3-7-sonnet", color = Color(0xFF64748B)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AgentPurple,
-                            unfocusedBorderColor = Color(0xFF334155),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        )
-                    )
+                        // Model Chips & Custom Model Management
+                        val providerModels = remember(selectedProvider) { llmPreferences.getModelsForProvider(selectedProvider) }
 
-                    // Model Suggestion Chips (Scrollable & Responsive)
-                    val providerModels = remember(selectedProvider) { llmPreferences.getModelsForProvider(selectedProvider) }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        providerModels.forEach { suggested ->
-                            val isSelected = model == suggested
-                            Surface(
-                                modifier = Modifier.clickable {
-                                    model = suggested
-                                    onSaveLlmConfig(
-                                        LlmConfig(
-                                            provider = selectedProvider,
-                                            apiKey = apiKey.trim(),
-                                            model = suggested,
-                                            baseUrl = baseUrl.trim()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 6.dp)
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            providerModels.forEach { suggested ->
+                                val isSelected = model == suggested
+                                Surface(
+                                    modifier = Modifier.clickable {
+                                        model = suggested
+                                        onSaveLlmConfig(
+                                            LlmConfig(
+                                                provider = selectedProvider,
+                                                apiKey = apiKey.trim(),
+                                                model = suggested,
+                                                baseUrl = baseUrl.trim()
+                                            )
                                         )
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) HotPink.copy(alpha = 0.2f) else AmoledBlack,
+                                    border = BorderStroke(1.dp, if (isSelected) HotPink else AmoledBorder)
+                                ) {
+                                    Text(
+                                        text = suggested,
+                                        color = if (isSelected) HotPink else Color(0xFF94A3B8),
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                                     )
-                                },
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) AgentPurple.copy(alpha = 0.4f) else Color(0xFF0F172A),
-                                border = BorderStroke(1.dp, if (isSelected) AgentAccent else Color(0xFF334155))
+                                }
+                            }
+                        }
+
+                        if (model.isNotBlank() && !providerModels.contains(model.trim())) {
+                            Surface(
+                                modifier = Modifier
+                                    .padding(top = 6.dp)
+                                    .clickable {
+                                        llmPreferences.addCustomModel(selectedProvider, model.trim())
+                                        Toast.makeText(context, "Saved custom model: ${model.trim()}", Toast.LENGTH_SHORT).show()
+                                    },
+                                shape = RoundedCornerShape(6.dp),
+                                color = BlueishGreen.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, BlueishGreen)
                             ) {
                                 Text(
-                                    text = suggested,
-                                    color = if (isSelected) AgentAccent else Color(0xFF94A3B8),
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                    text = "+ Save '${model.trim()}' to ${selectedProvider.name} list",
+                                    color = BlueishGreen,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
                             }
                         }
-                    }
 
-                    if (model.isNotBlank() && !providerModels.contains(model.trim())) {
-                        Surface(
-                            modifier = Modifier
-                                .padding(top = 6.dp)
-                                .clickable {
-                                    llmPreferences.addCustomModel(selectedProvider, model.trim())
-                                    Toast.makeText(context, "Saved custom model: ${model.trim()}", Toast.LENGTH_SHORT).show()
-                                },
-                            shape = RoundedCornerShape(6.dp),
-                            color = BluePrimary.copy(alpha = 0.2f),
-                            border = BorderStroke(1.dp, BluePrimary)
-                        ) {
-                            Text(
-                                text = "+ Save '${model.trim()}' to ${selectedProvider.name} list",
-                                color = AgentAccent,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-                    Text("Base URL (Optional / Ollama)", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    OutlinedTextField(
-                        value = baseUrl,
-                        onValueChange = {
-                            baseUrl = it
-                            onSaveLlmConfig(
-                                LlmConfig(
-                                    provider = selectedProvider,
-                                    apiKey = apiKey.trim(),
-                                    model = model.trim(),
-                                    baseUrl = baseUrl.trim()
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Base URL Field
+                        Text("Base URL (Optional / Ollama)", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = baseUrl,
+                            onValueChange = {
+                                baseUrl = it
+                                onSaveLlmConfig(
+                                    LlmConfig(
+                                        provider = selectedProvider,
+                                        apiKey = apiKey.trim(),
+                                        model = model.trim(),
+                                        baseUrl = baseUrl.trim()
+                                    )
                                 )
+                            },
+                            placeholder = { Text("http://10.0.2.2:11434/v1", color = Color(0xFF64748B)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = BlueishGreen,
+                                unfocusedBorderColor = AmoledBorder,
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
                             )
-                        },
-                        placeholder = { Text("http://10.0.2.2:11434/v1", color = Color(0xFF64748B)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AgentPurple,
-                            unfocusedBorderColor = Color(0xFF334155),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
                         )
-                    )
+                    }
                 }
+
+                HorizontalDivider(color = AmoledBorder, thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
+
+                // Section: About WebRanger
+                SettingsSectionHeader(title = "About WebRanger")
+
+                SettingsInfoRow(
+                    icon = Icons.Default.Info,
+                    title = "Application version",
+                    value = "1.0.0 (WebRanger AI Edition)"
+                )
+
+                SettingsInfoRow(
+                    icon = Icons.Default.Public,
+                    title = "Chromium Engine",
+                    value = "Chrome 131.0.0.0 (Mobile / ARM64 & x86_64)"
+                )
+
+                SettingsInfoRow(
+                    icon = Icons.Default.Shield,
+                    title = "Operating System",
+                    value = "Android (API 26–35)"
+                )
             }
-
-            HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp, modifier = Modifier.padding(vertical = 8.dp))
-
-            // Section: About WebRanger
-            SettingsSectionHeader(title = "About WebRanger")
-
-            SettingsInfoRow(
-                icon = Icons.Default.Info,
-                title = "Application version",
-                value = "1.0.0 (WebRanger AI Edition)"
-            )
-
-            SettingsInfoRow(
-                icon = Icons.Default.Public,
-                title = "Chromium Engine",
-                value = "Chrome 131.0.0.0 (Mobile / ARM64 & x86_64)"
-            )
-
-            SettingsInfoRow(
-                icon = Icons.Default.Shield,
-                title = "Operating System",
-                value = "Android (API 26–35)"
-            )
         }
     }
 }
@@ -857,133 +871,137 @@ fun PasswordManagerScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF0F172A))
-    ) {
-        // App Bar
-        Surface(color = Color(0xFF1E293B), shadowElevation = 4.dp) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Password Manager", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
-                }
-                IconButton(onClick = { showAddDialog = true }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Password", tint = AgentAccent)
-                }
-            }
-        }
-
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier
+                .widthIn(max = 680.dp)
                 .fillMaxSize()
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState())
+                .background(AmoledBlack)
         ) {
-            // AI Access Toggle Banner
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = if (sharePasswordsWithLlm) AgentPurple.copy(alpha = 0.25f) else Color(0xFF1E293B))
-            ) {
+            // App Bar
+            Surface(color = AmoledSurface, shadowElevation = 4.dp, border = BorderStroke(1.dp, AmoledBorder)) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Share passwords with AI / MCP tools", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Text("Allows Koog Agent and DevTools MCP server to read credentials and autofill forms", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Password Manager", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
                     }
-                    Switch(
-                        checked = sharePasswordsWithLlm,
-                        onCheckedChange = {
-                            sharePasswordsWithLlm = it
-                            browserPreferences.sharePasswordsWithLlm = it
-                        },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = AgentPurple)
-                    )
+                    IconButton(onClick = { showAddDialog = true }) {
+                        Icon(Icons.Default.Add, contentDescription = "Add Password", tint = HotPink)
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Search Bar
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = { Text("Search passwords...", color = Color(0xFF64748B)) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF94A3B8)) },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear", tint = Color(0xFF94A3B8))
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = BluePrimary,
-                    unfocusedBorderColor = Color(0xFF334155),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
-                )
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "SAVED PASSWORDS (${filteredCredentials.size})",
-                color = Color(0xFF94A3B8),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (filteredCredentials.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 40.dp),
-                    contentAlignment = Alignment.Center
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // AI Access Toggle Banner
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = if (sharePasswordsWithLlm) HotPink.copy(alpha = 0.15f) else AmoledCard),
+                    border = BorderStroke(1.dp, if (sharePasswordsWithLlm) HotPink else AmoledBorder)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.Key, contentDescription = null, tint = Color(0xFF475569), modifier = Modifier.size(48.dp))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("No saved passwords found", color = Color(0xFF94A3B8), fontSize = 14.sp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Share passwords with AI / MCP tools", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text("Allows WebRanger Agent and DevTools MCP server to read credentials and autofill forms", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = sharePasswordsWithLlm,
+                            onCheckedChange = {
+                                sharePasswordsWithLlm = it
+                                browserPreferences.sharePasswordsWithLlm = it
+                            },
+                            colors = SwitchDefaults.colors(checkedThumbColor = AmoledBlack, checkedTrackColor = HotPink)
+                        )
                     }
                 }
-            } else {
-                filteredCredentials.forEach { credential ->
-                    SavedCredentialCard(
-                        credential = credential,
-                        onCopyPassword = {
-                            clipboardManager.setText(AnnotatedString(credential.password))
-                            Toast.makeText(context, "Password copied to clipboard", Toast.LENGTH_SHORT).show()
-                        },
-                        onDelete = {
-                            passwordManager.deleteCredential(credential.id)
-                            credentialsList = passwordManager.getAllCredentials()
-                            Toast.makeText(context, "Deleted password for ${credential.username}", Toast.LENGTH_SHORT).show()
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Search Bar
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search passwords...", color = Color(0xFF64748B)) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF94A3B8)) },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear", tint = Color(0xFF94A3B8))
+                            }
                         }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = BlueishGreen,
+                        unfocusedBorderColor = AmoledBorder,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "SAVED PASSWORDS (${filteredCredentials.size})",
+                    color = BlueishGreen,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (filteredCredentials.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 40.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.Key, contentDescription = null, tint = Color(0xFF475569), modifier = Modifier.size(48.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("No saved passwords found", color = Color(0xFF94A3B8), fontSize = 14.sp)
+                        }
+                    }
+                } else {
+                    filteredCredentials.forEach { credential ->
+                        SavedCredentialCard(
+                            credential = credential,
+                            onCopyPassword = {
+                                clipboardManager.setText(AnnotatedString(credential.password))
+                                Toast.makeText(context, "Password copied to clipboard", Toast.LENGTH_SHORT).show()
+                            },
+                            onDelete = {
+                                passwordManager.deleteCredential(credential.id)
+                                credentialsList = passwordManager.getAllCredentials()
+                                Toast.makeText(context, "Deleted password for ${credential.username}", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                 }
             }
         }
@@ -1013,7 +1031,8 @@ private fun SavedCredentialCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B))
+        colors = CardDefaults.cardColors(containerColor = AmoledCard),
+        border = BorderStroke(1.dp, AmoledBorder)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
@@ -1024,13 +1043,13 @@ private fun SavedCredentialCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
                         shape = CircleShape,
-                        color = BluePrimary.copy(alpha = 0.2f),
+                        color = BlueishGreen.copy(alpha = 0.2f),
                         modifier = Modifier.size(36.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 text = credential.domain.take(1).uppercase(),
-                                color = BluePrimary,
+                                color = BlueishGreen,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )
@@ -1058,7 +1077,7 @@ private fun SavedCredentialCard(
             }
 
             Spacer(modifier = Modifier.height(10.dp))
-            HorizontalDivider(color = Color(0xFF334155), thickness = 0.5.dp)
+            HorizontalDivider(color = AmoledBorder, thickness = 0.5.dp)
             Spacer(modifier = Modifier.height(10.dp))
 
             // Username
@@ -1083,7 +1102,7 @@ private fun SavedCredentialCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = if (isPasswordRevealed) credential.password else "••••••••••••",
-                        color = if (isPasswordRevealed) AgentAccent else Color.White,
+                        color = if (isPasswordRevealed) HotPink else Color.White,
                         fontSize = 13.sp,
                         fontFamily = FontFamily.Monospace
                     )
@@ -1121,9 +1140,10 @@ private fun AddCredentialDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B))
+            colors = CardDefaults.cardColors(containerColor = AmoledCard),
+            border = BorderStroke(1.dp, AmoledBorder)
         ) {
             Column(
                 modifier = Modifier
@@ -1140,7 +1160,7 @@ private fun AddCredentialDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BluePrimary, unfocusedBorderColor = Color(0xFF334155), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BlueishGreen, unfocusedBorderColor = AmoledBorder, focusedTextColor = Color.White, unfocusedTextColor = Color.White)
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -1152,7 +1172,7 @@ private fun AddCredentialDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BluePrimary, unfocusedBorderColor = Color(0xFF334155), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BlueishGreen, unfocusedBorderColor = AmoledBorder, focusedTextColor = Color.White, unfocusedTextColor = Color.White)
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -1164,7 +1184,7 @@ private fun AddCredentialDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BluePrimary, unfocusedBorderColor = Color(0xFF334155), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HotPink, unfocusedBorderColor = AmoledBorder, focusedTextColor = Color.White, unfocusedTextColor = Color.White)
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -1176,13 +1196,13 @@ private fun AddCredentialDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BluePrimary, unfocusedBorderColor = Color(0xFF334155), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BlueishGreen, unfocusedBorderColor = AmoledBorder, focusedTextColor = Color.White, unfocusedTextColor = Color.White)
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)), shape = RoundedCornerShape(8.dp)) {
+                    Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = AmoledBorder), shape = RoundedCornerShape(8.dp)) {
                         Text("Cancel", color = Color.White)
                     }
                     Spacer(modifier = Modifier.width(10.dp))
@@ -1199,10 +1219,10 @@ private fun AddCredentialDialog(
                                 )
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = BluePrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = HotPink),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("Save", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Save", color = AmoledBlack, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -1226,9 +1246,10 @@ private fun ClearBrowsingDataDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B))
+            colors = CardDefaults.cardColors(containerColor = AmoledCard),
+            border = BorderStroke(1.dp, AmoledBorder)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text("Clear browsing data", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
@@ -1243,7 +1264,7 @@ private fun ClearBrowsingDataDialog(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)), shape = RoundedCornerShape(8.dp)) {
+                    Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = AmoledBorder), shape = RoundedCornerShape(8.dp)) {
                         Text("Cancel", color = Color.White)
                     }
                     Spacer(modifier = Modifier.width(10.dp))
@@ -1289,7 +1310,7 @@ private fun CheckboxItem(
         Checkbox(
             checked = checked,
             onCheckedChange = onChecked,
-            colors = CheckboxDefaults.colors(checkedColor = BluePrimary, checkmarkColor = Color.White)
+            colors = CheckboxDefaults.colors(checkedColor = BlueishGreen, checkmarkColor = AmoledBlack)
         )
         Spacer(modifier = Modifier.width(8.dp))
         Column {
@@ -1308,54 +1329,58 @@ fun SearchEngineSelectorScreen(
 ) {
     var selectedEngine by remember { mutableStateOf(browserPreferences.searchEngine) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF0F172A))
-    ) {
-        Surface(color = Color(0xFF1E293B), shadowElevation = 4.dp) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Search Engine", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
-            }
-        }
-
-        Column(modifier = Modifier.padding(16.dp)) {
-            SearchEngine.values().forEach { engine ->
-                val isSelected = selectedEngine == engine
-                Card(
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 680.dp)
+                .fillMaxSize()
+                .background(AmoledBlack)
+        ) {
+            Surface(color = AmoledSurface, shadowElevation = 4.dp, border = BorderStroke(1.dp, AmoledBorder)) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .clickable {
-                            selectedEngine = engine
-                            browserPreferences.searchEngine = engine
-                            browserEngine.applyPreferences(browserPreferences)
-                        },
-                    shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(containerColor = if (isSelected) BluePrimary.copy(alpha = 0.2f) else Color(0xFF1E293B))
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Search Engine", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+
+            Column(modifier = Modifier.padding(16.dp)) {
+                SearchEngine.values().forEach { engine ->
+                    val isSelected = selectedEngine == engine
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(vertical = 4.dp)
+                            .clickable {
+                                selectedEngine = engine
+                                browserPreferences.searchEngine = engine
+                                browserEngine.applyPreferences(browserPreferences)
+                            },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(containerColor = if (isSelected) BlueishGreen.copy(alpha = 0.15f) else AmoledCard),
+                        border = BorderStroke(1.dp, if (isSelected) BlueishGreen else AmoledBorder)
                     ) {
-                        Column {
-                            Text(engine.displayName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Text(engine.searchUrl, color = Color(0xFF94A3B8), fontSize = 12.sp)
-                        }
-                        if (isSelected) {
-                            Icon(Icons.Default.Check, contentDescription = "Selected", tint = BluePrimary)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(engine.displayName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text(engine.searchUrl, color = Color(0xFF94A3B8), fontSize = 12.sp)
+                            }
+                            if (isSelected) {
+                                Icon(Icons.Default.Check, contentDescription = "Selected", tint = BlueishGreen)
+                            }
                         }
                     }
                 }
@@ -1373,55 +1398,59 @@ fun CookiePolicySelectorScreen(
 ) {
     var selectedPolicy by remember { mutableStateOf(browserPreferences.cookiePolicy) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF0F172A))
-    ) {
-        Surface(color = Color(0xFF1E293B), shadowElevation = 4.dp) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Third-party Cookies", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
-            }
-        }
-
-        Column(modifier = Modifier.padding(16.dp)) {
-            CookiePolicy.values().forEach { policy ->
-                val isSelected = selectedPolicy == policy
-                Card(
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 680.dp)
+                .fillMaxSize()
+                .background(AmoledBlack)
+        ) {
+            Surface(color = AmoledSurface, shadowElevation = 4.dp, border = BorderStroke(1.dp, AmoledBorder)) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 6.dp)
-                        .clickable {
-                            selectedPolicy = policy
-                            browserPreferences.cookiePolicy = policy
-                            browserEngine.applyPreferences(browserPreferences)
-                        },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = if (isSelected) BluePrimary.copy(alpha = 0.2f) else Color(0xFF1E293B))
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Third-party Cookies", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+
+            Column(modifier = Modifier.padding(16.dp)) {
+                CookiePolicy.values().forEach { policy ->
+                    val isSelected = selectedPolicy == policy
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(vertical = 6.dp)
+                            .clickable {
+                                selectedPolicy = policy
+                                browserPreferences.cookiePolicy = policy
+                                browserEngine.applyPreferences(browserPreferences)
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = if (isSelected) BlueishGreen.copy(alpha = 0.15f) else AmoledCard),
+                        border = BorderStroke(1.dp, if (isSelected) BlueishGreen else AmoledBorder)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(policy.displayName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(policy.description, color = Color(0xFF94A3B8), fontSize = 12.sp)
-                        }
-                        if (isSelected) {
-                            Icon(Icons.Default.Check, contentDescription = "Selected", tint = BluePrimary)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(policy.displayName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(policy.description, color = Color(0xFF94A3B8), fontSize = 12.sp)
+                            }
+                            if (isSelected) {
+                                Icon(Icons.Default.Check, contentDescription = "Selected", tint = BlueishGreen)
+                            }
                         }
                     }
                 }
@@ -1438,54 +1467,58 @@ fun SafeBrowsingSelectorScreen(
 ) {
     var selectedLevel by remember { mutableStateOf(browserPreferences.safeBrowsingLevel) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF0F172A))
-    ) {
-        Surface(color = Color(0xFF1E293B), shadowElevation = 4.dp) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Safe Browsing", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
-            }
-        }
-
-        Column(modifier = Modifier.padding(16.dp)) {
-            SafeBrowsingLevel.values().forEach { level ->
-                val isSelected = selectedLevel == level
-                Card(
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 680.dp)
+                .fillMaxSize()
+                .background(AmoledBlack)
+        ) {
+            Surface(color = AmoledSurface, shadowElevation = 4.dp, border = BorderStroke(1.dp, AmoledBorder)) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 6.dp)
-                        .clickable {
-                            selectedLevel = level
-                            browserPreferences.safeBrowsingLevel = level
-                        },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = if (isSelected) BluePrimary.copy(alpha = 0.2f) else Color(0xFF1E293B))
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Safe Browsing", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+
+            Column(modifier = Modifier.padding(16.dp)) {
+                SafeBrowsingLevel.values().forEach { level ->
+                    val isSelected = selectedLevel == level
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(vertical = 6.dp)
+                            .clickable {
+                                selectedLevel = level
+                                browserPreferences.safeBrowsingLevel = level
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = if (isSelected) HotPink.copy(alpha = 0.15f) else AmoledCard),
+                        border = BorderStroke(1.dp, if (isSelected) HotPink else AmoledBorder)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(level.displayName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(level.description, color = Color(0xFF94A3B8), fontSize = 12.sp)
-                        }
-                        if (isSelected) {
-                            Icon(Icons.Default.Check, contentDescription = "Selected", tint = BluePrimary)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(level.displayName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(level.description, color = Color(0xFF94A3B8), fontSize = 12.sp)
+                            }
+                            if (isSelected) {
+                                Icon(Icons.Default.Check, contentDescription = "Selected", tint = HotPink)
+                            }
                         }
                     }
                 }
@@ -1499,7 +1532,7 @@ fun SafeBrowsingSelectorScreen(
 private fun SettingsSectionHeader(title: String) {
     Text(
         text = title.uppercase(),
-        color = BluePrimary,
+        color = BlueishGreen,
         fontSize = 11.sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = 1.2.sp,
@@ -1512,7 +1545,7 @@ private fun SettingsNavigationRow(
     icon: ImageVector,
     title: String,
     subtitle: String,
-    tint: Color = BluePrimary,
+    tint: Color = BlueishGreen,
     onClick: () -> Unit
 ) {
     Row(
@@ -1573,9 +1606,9 @@ private fun SettingsSwitchRow(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = BluePrimary,
-                uncheckedTrackColor = Color(0xFF334155)
+                checkedThumbColor = AmoledBlack,
+                checkedTrackColor = BlueishGreen,
+                uncheckedTrackColor = AmoledBorder
             )
         )
     }
@@ -1595,7 +1628,7 @@ private fun SettingsInfoRow(
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(imageVector = icon, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(22.dp))
+            Icon(imageVector = icon, contentDescription = null, tint = BlueishGreen, modifier = Modifier.size(22.dp))
             Spacer(modifier = Modifier.width(14.dp))
             Text(text = title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
         }

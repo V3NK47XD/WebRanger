@@ -1,5 +1,6 @@
 package com.chromemobile.browser.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -51,9 +52,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.chromemobile.browser.agent.LlmConfig
 import com.chromemobile.browser.agent.LlmProvider
-import com.chromemobile.browser.ui.theme.AgentAccent
-import com.chromemobile.browser.ui.theme.AgentPurple
-import com.chromemobile.browser.ui.theme.BluePrimary
+import com.chromemobile.browser.ui.theme.AmoledBlack
+import com.chromemobile.browser.ui.theme.AmoledBorder
+import com.chromemobile.browser.ui.theme.AmoledCard
+import com.chromemobile.browser.ui.theme.BlueishGreen
+import com.chromemobile.browser.ui.theme.HotPink
 
 @Composable
 fun SettingsDialog(
@@ -82,7 +85,8 @@ fun SettingsDialog(
                 .fillMaxWidth()
                 .padding(8.dp),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+            colors = CardDefaults.cardColors(containerColor = AmoledCard),
+            border = BorderStroke(1.dp, AmoledBorder),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
             Column(
@@ -101,12 +105,12 @@ fun SettingsDialog(
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Settings",
-                            tint = AgentAccent,
+                            tint = HotPink,
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "AI Agent Settings",
+                            text = "WebRanger Settings",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -132,7 +136,8 @@ fun SettingsDialog(
                             .fillMaxWidth()
                             .clickable { isProviderDropdownExpanded = true },
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFF0F172A)
+                        color = AmoledBlack,
+                        border = BorderStroke(1.dp, AmoledBorder)
                     ) {
                         Row(
                             modifier = Modifier
@@ -153,20 +158,19 @@ fun SettingsDialog(
                     DropdownMenu(
                         expanded = isProviderDropdownExpanded,
                         onDismissRequest = { isProviderDropdownExpanded = false },
-                        modifier = Modifier.background(Color(0xFF1E293B))
+                        modifier = Modifier.background(Color(0xFF0F1218))
                     ) {
                         LlmProvider.values().forEach { provider ->
                             DropdownMenuItem(
                                 text = {
                                     Text(
                                         text = provider.name,
-                                        color = if (selectedProvider == provider) AgentAccent else Color.White
+                                        color = if (selectedProvider == provider) BlueishGreen else Color.White
                                     )
                                 },
                                 onClick = {
                                     selectedProvider = provider
                                     isProviderDropdownExpanded = false
-                                    // Update default model for provider
                                     val suggestedModel = defaultModels[provider]?.firstOrNull() ?: "default"
                                     model = suggestedModel
                                     if (provider == LlmProvider.OLLAMA && baseUrl.isEmpty()) {
@@ -192,7 +196,7 @@ fun SettingsDialog(
                         shape = RoundedCornerShape(10.dp),
                         singleLine = true,
                         leadingIcon = {
-                            Icon(Icons.Default.Key, contentDescription = "API Key", tint = Color(0xFF94A3B8))
+                            Icon(Icons.Default.Key, contentDescription = "API Key", tint = HotPink)
                         },
                         trailingIcon = {
                             IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
@@ -205,8 +209,8 @@ fun SettingsDialog(
                         },
                         visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AgentPurple,
-                            unfocusedBorderColor = Color(0xFF334155),
+                            focusedBorderColor = HotPink,
+                            unfocusedBorderColor = AmoledBorder,
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White
                         )
@@ -225,8 +229,8 @@ fun SettingsDialog(
                     shape = RoundedCornerShape(10.dp),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AgentPurple,
-                        unfocusedBorderColor = Color(0xFF334155),
+                        focusedBorderColor = BlueishGreen,
+                        unfocusedBorderColor = AmoledBorder,
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White
                     )
@@ -243,11 +247,12 @@ fun SettingsDialog(
                         Surface(
                             modifier = Modifier.clickable { model = suggested },
                             shape = RoundedCornerShape(6.dp),
-                            color = if (model == suggested) AgentPurple.copy(alpha = 0.3f) else Color(0xFF0F172A)
+                            color = if (model == suggested) HotPink.copy(alpha = 0.2f) else AmoledBlack,
+                            border = BorderStroke(1.dp, if (model == suggested) HotPink else AmoledBorder)
                         ) {
                             Text(
                                 text = suggested,
-                                color = if (model == suggested) AgentAccent else Color(0xFF94A3B8),
+                                color = if (model == suggested) HotPink else Color(0xFF94A3B8),
                                 fontSize = 10.sp,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                             )
@@ -257,7 +262,7 @@ fun SettingsDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Custom Base URL (for Ollama / Proxies)
+                // Custom Base URL
                 Text("Base URL (Optional / Ollama)", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(modifier = Modifier.height(4.dp))
                 OutlinedTextField(
@@ -268,8 +273,8 @@ fun SettingsDialog(
                     shape = RoundedCornerShape(10.dp),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AgentPurple,
-                        unfocusedBorderColor = Color(0xFF334155),
+                        focusedBorderColor = BlueishGreen,
+                        unfocusedBorderColor = AmoledBorder,
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White
                     )
@@ -284,7 +289,7 @@ fun SettingsDialog(
                 ) {
                     Button(
                         onClick = onDismiss,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
+                        colors = ButtonDefaults.buttonColors(containerColor = AmoledBorder),
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Text("Cancel", color = Color.White)
@@ -304,10 +309,10 @@ fun SettingsDialog(
                             )
                             onDismiss()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = BluePrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = HotPink),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("Save Settings", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Save Settings", color = AmoledBlack, fontWeight = FontWeight.Bold)
                     }
                 }
             }

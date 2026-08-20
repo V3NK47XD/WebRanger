@@ -82,9 +82,12 @@ import androidx.compose.ui.unit.sp
 import com.chromemobile.browser.agent.LlmConfig
 import com.chromemobile.browser.agent.LlmPreferences
 import com.chromemobile.browser.agent.LlmProvider
-import com.chromemobile.browser.ui.theme.AgentAccent
-import com.chromemobile.browser.ui.theme.AgentPurple
-import com.chromemobile.browser.ui.theme.BluePrimary
+import com.chromemobile.browser.ui.theme.AmoledBlack
+import com.chromemobile.browser.ui.theme.AmoledBorder
+import com.chromemobile.browser.ui.theme.AmoledCard
+import com.chromemobile.browser.ui.theme.AmoledSurface
+import com.chromemobile.browser.ui.theme.BlueishGreen
+import com.chromemobile.browser.ui.theme.HotPink
 
 @Composable
 fun OnboardingScreen(
@@ -112,18 +115,10 @@ fun OnboardingScreen(
         label = "glow_scale"
     )
 
-    val backgroundGradient = Brush.verticalGradient(
-        colors = listOf(
-            Color(0xFF0F172A),
-            Color(0xFF0B1120),
-            Color(0xFF020617)
-        )
-    )
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(backgroundGradient)
+            .background(AmoledBlack)
             .statusBarsPadding()
             .navigationBarsPadding(),
         contentAlignment = Alignment.TopCenter
@@ -165,13 +160,13 @@ fun OnboardingScreen(
                                     .background(
                                         Brush.radialGradient(
                                             colors = listOf(
-                                                AgentAccent.copy(alpha = 0.6f),
-                                                AgentPurple.copy(alpha = 0.2f),
+                                                HotPink.copy(alpha = 0.5f),
+                                                BlueishGreen.copy(alpha = 0.2f),
                                                 Color.Transparent
                                             )
                                         )
                                     )
-                                    .border(2.dp, AgentAccent, CircleShape),
+                                    .border(2.dp, HotPink, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
@@ -195,7 +190,7 @@ fun OnboardingScreen(
                             Text(
                                 text = "Autonomous In-App AI Browser on Android",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = AgentAccent,
+                                color = BlueishGreen,
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.padding(top = 4.dp)
                             )
@@ -205,7 +200,7 @@ fun OnboardingScreen(
                             // Feature cards
                             FeatureCard(
                                 icon = Icons.Default.RocketLaunch,
-                                iconColor = Color(0xFF38BDF8),
+                                iconColor = BlueishGreen,
                                 title = "Autonomous Navigation",
                                 description = "Execute complex multi-step mobile web tasks directly in the Chromium browser."
                             )
@@ -214,7 +209,7 @@ fun OnboardingScreen(
 
                             FeatureCard(
                                 icon = Icons.Default.Speed,
-                                iconColor = Color(0xFFA855F7),
+                                iconColor = HotPink,
                                 title = "Real-Time DevTools MCP",
                                 description = "Standardized DevTools tool provider with visual badges and synthetic touch."
                             )
@@ -223,7 +218,7 @@ fun OnboardingScreen(
 
                             FeatureCard(
                                 icon = Icons.Default.Security,
-                                iconColor = Color(0xFF10B981),
+                                iconColor = BlueishGreen,
                                 title = "Password Manager & Security",
                                 description = "Built-in credential store with optional AI password access controls."
                             )
@@ -238,18 +233,19 @@ fun OnboardingScreen(
                                 .fillMaxWidth()
                                 .height(54.dp),
                             shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = BluePrimary)
+                            colors = ButtonDefaults.buttonColors(containerColor = HotPink)
                         ) {
                             Text(
                                 text = "Set Up AI Model",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = AmoledBlack
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                                 contentDescription = null,
+                                tint = AmoledBlack,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -293,7 +289,7 @@ fun OnboardingScreen(
                             text = "SELECT PROVIDER",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = AgentAccent,
+                            color = BlueishGreen,
                             modifier = Modifier.fillMaxWidth()
                         )
 
@@ -316,15 +312,15 @@ fun OnboardingScreen(
                                         }
                                     },
                                     shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) AgentPurple else Color(0xFF1E293B),
+                                    color = if (isSelected) HotPink.copy(alpha = 0.2f) else AmoledCard,
                                     border = androidx.compose.foundation.BorderStroke(
                                         1.dp,
-                                        if (isSelected) AgentAccent else Color(0xFF334155)
+                                        if (isSelected) HotPink else AmoledBorder
                                     )
                                 ) {
                                     Text(
                                         text = provider.name,
-                                        color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                        color = if (isSelected) HotPink else Color(0xFF94A3B8),
                                         fontSize = 12.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
@@ -341,7 +337,7 @@ fun OnboardingScreen(
                                 text = "${selectedProvider.name} API KEY",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = AgentAccent,
+                                color = BlueishGreen,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Spacer(modifier = Modifier.height(6.dp))
@@ -353,7 +349,7 @@ fun OnboardingScreen(
                                 shape = RoundedCornerShape(12.dp),
                                 singleLine = true,
                                 leadingIcon = {
-                                    Icon(Icons.Default.Key, contentDescription = null, tint = Color(0xFF94A3B8))
+                                    Icon(Icons.Default.Key, contentDescription = null, tint = HotPink)
                                 },
                                 trailingIcon = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -368,8 +364,8 @@ fun OnboardingScreen(
                                 },
                                 visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = AgentPurple,
-                                    unfocusedBorderColor = Color(0xFF334155),
+                                    focusedBorderColor = HotPink,
+                                    unfocusedBorderColor = AmoledBorder,
                                     focusedTextColor = Color.White,
                                     unfocusedTextColor = Color.White
                                 )
@@ -383,7 +379,7 @@ fun OnboardingScreen(
                             text = "MODEL NAME",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = AgentAccent,
+                            color = BlueishGreen,
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(modifier = Modifier.height(6.dp))
@@ -394,14 +390,14 @@ fun OnboardingScreen(
                             shape = RoundedCornerShape(12.dp),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = AgentPurple,
-                                unfocusedBorderColor = Color(0xFF334155),
+                                focusedBorderColor = BlueishGreen,
+                                unfocusedBorderColor = AmoledBorder,
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White
                             )
                         )
 
-                        // Quick Model Suggestion Chips (Horizontally scrollable)
+                        // Quick Model Suggestion Chips
                         val suggestions = llmPreferences.getModelsForProvider(selectedProvider)
 
                         Row(
@@ -415,12 +411,12 @@ fun OnboardingScreen(
                                 Surface(
                                     modifier = Modifier.clickable { model = chip },
                                     shape = RoundedCornerShape(8.dp),
-                                    color = if (model == chip) AgentPurple.copy(alpha = 0.3f) else Color(0xFF1E293B),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (model == chip) AgentAccent else Color(0xFF334155))
+                                    color = if (model == chip) HotPink.copy(alpha = 0.2f) else AmoledCard,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (model == chip) HotPink else AmoledBorder)
                                 ) {
                                     Text(
                                         text = chip,
-                                        color = if (model == chip) AgentAccent else Color(0xFF94A3B8),
+                                        color = if (model == chip) HotPink else Color(0xFF94A3B8),
                                         fontSize = 11.sp,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                                     )
@@ -434,7 +430,7 @@ fun OnboardingScreen(
                                 text = "BASE URL (Ollama / Local Proxy)",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = AgentAccent,
+                                color = BlueishGreen,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Spacer(modifier = Modifier.height(6.dp))
@@ -446,8 +442,8 @@ fun OnboardingScreen(
                                 shape = RoundedCornerShape(12.dp),
                                 singleLine = true,
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = AgentPurple,
-                                    unfocusedBorderColor = Color(0xFF334155),
+                                    focusedBorderColor = BlueishGreen,
+                                    unfocusedBorderColor = AmoledBorder,
                                     focusedTextColor = Color.White,
                                     unfocusedTextColor = Color.White
                                 )
@@ -472,18 +468,19 @@ fun OnboardingScreen(
                                 .fillMaxWidth()
                                 .height(54.dp),
                             shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = BluePrimary)
+                            colors = ButtonDefaults.buttonColors(containerColor = BlueishGreen)
                         ) {
                             Text(
                                 text = "Launch WebRanger",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = AmoledBlack
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Icon(
                                 imageVector = Icons.Default.Check,
                                 contentDescription = null,
+                                tint = AmoledBlack,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -506,8 +503,8 @@ fun FeatureCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+        colors = CardDefaults.cardColors(containerColor = AmoledCard),
+        border = androidx.compose.foundation.BorderStroke(1.dp, AmoledBorder)
     ) {
         Row(
             modifier = Modifier
@@ -519,7 +516,7 @@ fun FeatureCard(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(iconColor.copy(alpha = 0.2f)),
+                    .background(iconColor.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(

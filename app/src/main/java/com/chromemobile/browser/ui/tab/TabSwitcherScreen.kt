@@ -58,7 +58,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -70,10 +69,13 @@ import com.chromemobile.browser.agent.AgentStatus
 import com.chromemobile.browser.tab.BrowserTab
 import com.chromemobile.browser.tab.TabAiContext
 import com.chromemobile.browser.tab.TabManager
-import com.chromemobile.browser.ui.theme.AgentAccent
-import com.chromemobile.browser.ui.theme.AgentPurple
-import com.chromemobile.browser.ui.theme.BluePrimary
+import com.chromemobile.browser.ui.theme.AmoledBlack
+import com.chromemobile.browser.ui.theme.AmoledBorder
+import com.chromemobile.browser.ui.theme.AmoledCard
+import com.chromemobile.browser.ui.theme.AmoledSurface
+import com.chromemobile.browser.ui.theme.BlueishGreen
 import com.chromemobile.browser.ui.theme.ErrorRed
+import com.chromemobile.browser.ui.theme.HotPink
 import com.chromemobile.browser.ui.theme.SuccessGreen
 
 @Composable
@@ -101,15 +103,15 @@ fun TabSwitcherScreen(
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding(),
-        color = Color(0xFF0B1120)
+        color = AmoledBlack
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Top App Bar
                 Surface(
-                    color = Color(0xFF1E293B),
+                    color = AmoledSurface,
                     shadowElevation = 6.dp,
-                    border = BorderStroke(1.dp, Color(0xFF334155))
+                    border = BorderStroke(1.dp, AmoledBorder)
                 ) {
                     Row(
                         modifier = Modifier
@@ -121,8 +123,8 @@ fun TabSwitcherScreen(
                         // New Tab Button
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFF0F172A),
-                            border = BorderStroke(1.dp, BluePrimary),
+                            color = AmoledBlack,
+                            border = BorderStroke(1.dp, HotPink),
                             modifier = Modifier.clickable {
                                 tabManager.createTab(url = "about:blank", selectImmediately = true)
                                 onCloseSwitcher()
@@ -132,7 +134,7 @@ fun TabSwitcherScreen(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Add, contentDescription = "New Tab", tint = BluePrimary, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Add, contentDescription = "New Tab", tint = HotPink, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("New Tab", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
@@ -150,13 +152,13 @@ fun TabSwitcherScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFF0F172A),
-                                border = BorderStroke(1.dp, Color(0xFF334155)),
+                                color = AmoledBlack,
+                                border = BorderStroke(1.dp, AmoledBorder),
                                 modifier = Modifier.clickable { onCloseSwitcher() }
                             ) {
                                 Text(
                                     text = "Done",
-                                    color = AgentAccent,
+                                    color = BlueishGreen,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
@@ -171,7 +173,7 @@ fun TabSwitcherScreen(
                                 DropdownMenu(
                                     expanded = isMenuExpanded,
                                     onDismissRequest = { isMenuExpanded = false },
-                                    modifier = Modifier.background(Color(0xFF1E293B))
+                                    modifier = Modifier.background(Color(0xFF0F1218))
                                 ) {
                                     DropdownMenuItem(
                                         text = {
@@ -235,11 +237,11 @@ fun TabSwitcherScreen(
                 val ctx = selectedTab?.aiContext
 
                 if (ctx != null) {
-                    // Full-screen invisible touch interceptor: clicking anywhere hides tooltip
+                    // Full-screen invisible touch interceptor
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.5f))
+                            .background(Color.Black.copy(alpha = 0.6f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
@@ -258,12 +260,11 @@ fun TabSwitcherScreen(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
                                 ) {
-                                    // Clicking on the popup also hides it as requested
                                     activeTooltipTabId = null
                                 },
                             shape = RoundedCornerShape(18.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                            border = BorderStroke(1.5.dp, AgentPurple),
+                            colors = CardDefaults.cardColors(containerColor = AmoledCard),
+                            border = BorderStroke(1.5.dp, HotPink),
                             elevation = CardDefaults.cardElevation(defaultElevation = 16.dp)
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
@@ -277,10 +278,10 @@ fun TabSwitcherScreen(
                                             modifier = Modifier
                                                 .size(28.dp)
                                                 .clip(CircleShape)
-                                                .background(AgentPurple),
+                                                .background(HotPink),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = AmoledBlack, modifier = Modifier.size(16.dp))
                                         }
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text("Tab AI Context", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
@@ -288,12 +289,12 @@ fun TabSwitcherScreen(
 
                                     Surface(
                                         shape = RoundedCornerShape(6.dp),
-                                        color = SuccessGreen.copy(alpha = 0.2f),
-                                        border = BorderStroke(1.dp, SuccessGreen.copy(alpha = 0.5f))
+                                        color = BlueishGreen.copy(alpha = 0.2f),
+                                        border = BorderStroke(1.dp, BlueishGreen.copy(alpha = 0.5f))
                                     ) {
                                         Text(
                                             text = "${ctx.totalTurns} turns",
-                                            color = SuccessGreen,
+                                            color = BlueishGreen,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -302,10 +303,10 @@ fun TabSwitcherScreen(
                                 }
 
                                 Spacer(modifier = Modifier.height(10.dp))
-                                HorizontalDivider(color = Color(0xFF334155))
+                                HorizontalDivider(color = AmoledBorder)
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                Text("LAST GOAL / TASK", color = AgentAccent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Text("LAST GOAL / TASK", color = HotPink, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = ctx.lastGoal.ifBlank { "No recorded task" },
@@ -316,7 +317,7 @@ fun TabSwitcherScreen(
 
                                 if (!ctx.finalAnswer.isNullOrBlank()) {
                                     Spacer(modifier = Modifier.height(8.dp))
-                                    Text("SUMMARY / RESULT", color = SuccessGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Text("SUMMARY / RESULT", color = BlueishGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = ctx.finalAnswer,
@@ -358,21 +359,21 @@ private fun TabCard(
             .clickable(onClick = onSelectTab),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isActive) Color(0xFF1E293B) else Color(0xFF0F172A)
+            containerColor = if (isActive) AmoledCard else AmoledSurface
         ),
         border = BorderStroke(
-            width = if (isActive) 2.dp else 1.dp,
-            color = if (isActive) BluePrimary else Color(0xFF334155)
+            width = if (isActive) 1.5.dp else 1.dp,
+            color = if (isActive) BlueishGreen else AmoledBorder
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isActive) 8.dp else 2.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Tab Header (Favicon/Icon, Title, Close Button)
+            // Tab Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(if (isActive) BluePrimary.copy(alpha = 0.15f) else Color(0xFF1E293B).copy(alpha = 0.5f))
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+                    .background(if (isActive) BlueishGreen.copy(alpha = 0.12f) else AmoledSurface)
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -383,7 +384,7 @@ private fun TabCard(
                     Icon(
                         imageVector = Icons.Default.Language,
                         contentDescription = null,
-                        tint = if (isActive) BluePrimary else Color(0xFF94A3B8),
+                        tint = if (isActive) BlueishGreen else Color(0xFF94A3B8),
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -415,7 +416,7 @@ private fun TabCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1.25f)
-                    .background(Color(0xFF020617)),
+                    .background(AmoledBlack),
                 contentAlignment = Alignment.Center
             ) {
                 if (tab.previewBitmap != null) {
@@ -433,7 +434,7 @@ private fun TabCard(
                         Icon(
                             imageVector = Icons.Default.Language,
                             contentDescription = null,
-                            tint = Color(0xFF334155),
+                            tint = Color(0xFF222634),
                             modifier = Modifier.size(32.dp)
                         )
                         Spacer(modifier = Modifier.height(4.dp))
@@ -447,12 +448,12 @@ private fun TabCard(
                     }
                 }
 
-                // AI Context Tooltip Badge (Shown ONLY if AI Agent was used on this tab!)
+                // AI Context Tooltip Badge
                 if (tab.hasAiContext) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF1E293B).copy(alpha = 0.95f),
-                        border = BorderStroke(1.dp, AgentPurple),
+                        color = AmoledSurface.copy(alpha = 0.95f),
+                        border = BorderStroke(1.dp, HotPink),
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
                             .padding(6.dp)
@@ -465,7 +466,7 @@ private fun TabCard(
                             Icon(
                                 imageVector = Icons.Default.AutoAwesome,
                                 contentDescription = "AI Context",
-                                tint = AgentAccent,
+                                tint = HotPink,
                                 modifier = Modifier.size(12.dp)
                             )
                             Spacer(modifier = Modifier.width(3.dp))

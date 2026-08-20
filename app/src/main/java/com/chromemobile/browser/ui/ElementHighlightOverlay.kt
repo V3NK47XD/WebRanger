@@ -17,6 +17,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import com.chromemobile.browser.agent.ElementRect
+import com.chromemobile.browser.ui.theme.BlueishGreen
+import com.chromemobile.browser.ui.theme.HotPink
 
 @Composable
 fun ElementHighlightOverlay(
@@ -31,7 +33,7 @@ fun ElementHighlightOverlay(
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val alpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
-        targetValue = 0.9f,
+        targetValue = 0.95f,
         animationSpec = infiniteRepeatable(
             animation = tween(durationMillis = 600, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
@@ -40,7 +42,7 @@ fun ElementHighlightOverlay(
     )
 
     Canvas(modifier = modifier.fillMaxSize()) {
-        // Avoid drawing if the element covers >90% of the screen (e.g. full-screen body or main container)
+        // Avoid drawing if the element covers >90% of the screen
         val w = highlightedRect.width.toFloat() * density
         val h = highlightedRect.height.toFloat() * density
         if (w >= size.width * 0.92f && h >= size.height * 0.85f) {
@@ -54,21 +56,21 @@ fun ElementHighlightOverlay(
 
         if (width <= 0 || height <= 0) return@Canvas
 
-        // Draw subtle glowing background highlight
+        // Draw subtle glowing background highlight in Hot Pink / Blueish Green
         drawRoundRect(
-            color = Color(0x307C3AED).copy(alpha = alpha * 0.25f),
+            color = HotPink.copy(alpha = alpha * 0.22f),
             topLeft = Offset(left - 3f, top - 3f),
             size = Size(width + 6f, height + 6f),
             cornerRadius = CornerRadius(6f, 6f)
         )
 
-        // Draw animated border stroke
+        // Draw animated border stroke in Blueish Green
         drawRoundRect(
-            color = Color(0xFF7C3AED).copy(alpha = alpha),
+            color = BlueishGreen.copy(alpha = alpha),
             topLeft = Offset(left - 2f, top - 2f),
             size = Size(width + 4f, height + 4f),
             cornerRadius = CornerRadius(6f, 6f),
-            style = Stroke(width = 3f)
+            style = Stroke(width = 2.5f)
         )
     }
 }

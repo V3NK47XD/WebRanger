@@ -1,11 +1,14 @@
 package com.chromemobile.browser.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,13 +24,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -51,11 +55,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.chromemobile.browser.engine.ConsoleMessageEntry
-import com.chromemobile.browser.ui.theme.AgentAccent
-import com.chromemobile.browser.ui.theme.AgentPurple
-import com.chromemobile.browser.ui.theme.BluePrimary
+import com.chromemobile.browser.ui.theme.AmoledBlack
+import com.chromemobile.browser.ui.theme.AmoledBorder
+import com.chromemobile.browser.ui.theme.AmoledCard
+import com.chromemobile.browser.ui.theme.BlueishGreen
 import com.chromemobile.browser.ui.theme.ErrorRed
-import com.chromemobile.browser.ui.theme.SuccessGreen
+import com.chromemobile.browser.ui.theme.HotPink
 import com.chromemobile.browser.ui.theme.WarningYellow
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -69,18 +74,19 @@ fun ConsoleDrawer(
     onDismiss: () -> Unit
 ) {
     var jsInput by remember { mutableStateOf("") }
-    var filterText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+    var filterText by remember { mutableStateOf("") }
 
-    val filteredLogs = remember(logs, filterText) {
-        if (filterText.isEmpty()) logs
-        else logs.filter { it.message.contains(filterText, ignoreCase = true) || it.sourceId.contains(filterText, ignoreCase = true) }
+    // Auto-scroll on new console logs
+    LaunchedEffect(logs.size) {
+        if (logs.isNotEmpty()) {
+            listState.animateScrollToItem(logs.size - 1)
+        }
     }
 
-    LaunchedEffect(filteredLogs.size) {
-        if (filteredLogs.isNotEmpty()) {
-            listState.animateScrollToItem(filteredLogs.size - 1)
-        }
+    val filteredLogs = remember(logs, filterText) {
+        if (filterText.isBlank()) logs
+        else logs.filter { it.message.contains(filterText, ignoreCase = true) }
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -90,12 +96,13 @@ fun ConsoleDrawer(
                 .fillMaxHeight(0.85f)
                 .padding(4.dp),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+            colors = CardDefaults.cardColors(containerColor = AmoledCard),
+            border = BorderStroke(1.dp, AmoledBorder),
             elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .fillMaxSize()
                     .padding(14.dp)
             ) {
                 // Header
@@ -108,23 +115,23 @@ fun ConsoleDrawer(
                         Icon(
                             imageVector = Icons.Default.Terminal,
                             contentDescription = "Console",
-                            tint = AgentAccent,
+                            tint = BlueishGreen,
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Browser Console (${logs.size})",
+                            text = "Web Console (${logs.size})",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                     }
 
-                    Row {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onClearLogs) {
                             Icon(
-                                imageVector = Icons.Default.Clear,
-                                contentDescription = "Clear",
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Clear Logs",
                                 tint = Color(0xFF94A3B8)
                             )
                         }
@@ -145,54 +152,57 @@ fun ConsoleDrawer(
                     placeholder = { Text("Filter logs...", color = Color(0xFF64748B), fontSize = 12.sp) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(46.dp),
-                    shape = RoundedCornerShape(8.dp),
+                        .height(48.dp),
+                    shape = RoundedCornerShape(10.dp),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = BluePrimary,
-                        unfocusedBorderColor = Color(0xFF334155),
+                        focusedBorderColor = BlueishGreen,
+                        unfocusedBorderColor = AmoledBorder,
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White
-                    )
+                    ),
+                    trailingIcon = {
+                        if (filterText.isNotEmpty()) {
+                            IconButton(onClick = { filterText = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear", tint = Color.Gray, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Console Logs List
+                // Console output log list
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFF020617),
+                    color = AmoledBlack,
+                    border = BorderStroke(1.dp, AmoledBorder),
                     modifier = Modifier
-                        .fillMaxWidth()
                         .weight(1f)
+                        .fillMaxWidth()
                 ) {
                     if (filteredLogs.isEmpty()) {
-                        Box(
-                            modifier = Modifier.padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "No console messages yet. Interact with the browser or run JavaScript below.",
-                                color = Color(0xFF64748B),
-                                fontSize = 12.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("No console messages yet.", color = Color(0xFF64748B), fontSize = 12.sp)
                         }
                     } else {
                         LazyColumn(
                             state = listState,
-                            modifier = Modifier.padding(8.dp)
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(8.dp)
                         ) {
-                            items(filteredLogs) { log ->
-                                ConsoleLogRow(log)
+                            items(filteredLogs) { entry ->
+                                ConsoleLogRow(entry)
+                                HorizontalDivider(color = AmoledBorder.copy(alpha = 0.4f), thickness = 0.5.dp)
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Interactive JavaScript REPL Input
+                // Interactive JavaScript Evaluator Input Box
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -207,8 +217,8 @@ fun ConsoleDrawer(
                         shape = RoundedCornerShape(10.dp),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AgentPurple,
-                            unfocusedBorderColor = Color(0xFF334155),
+                            focusedBorderColor = HotPink,
+                            unfocusedBorderColor = AmoledBorder,
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White
                         ),
@@ -232,11 +242,11 @@ fun ConsoleDrawer(
                                 jsInput = ""
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = AgentPurple),
+                        colors = ButtonDefaults.buttonColors(containerColor = HotPink),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.height(50.dp)
                     ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Run")
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Run", tint = AmoledBlack)
                     }
                 }
             }
@@ -248,8 +258,8 @@ fun ConsoleDrawer(
 fun ConsoleLogRow(entry: ConsoleMessageEntry) {
     val (badgeText, badgeColor) = when (entry.level) {
         ConsoleMessageEntry.LogLevel.DEBUG -> "DEBUG" to Color(0xFF64748B)
-        ConsoleMessageEntry.LogLevel.LOG -> "LOG" to BluePrimary
-        ConsoleMessageEntry.LogLevel.INFO -> "INFO" to AgentAccent
+        ConsoleMessageEntry.LogLevel.LOG -> "LOG" to BlueishGreen
+        ConsoleMessageEntry.LogLevel.INFO -> "INFO" to BlueishGreen
         ConsoleMessageEntry.LogLevel.WARNING -> "WARN" to WarningYellow
         ConsoleMessageEntry.LogLevel.ERROR -> "ERROR" to ErrorRed
     }
@@ -267,11 +277,11 @@ fun ConsoleLogRow(entry: ConsoleMessageEntry) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Surface(
                 shape = RoundedCornerShape(4.dp),
-                color = if (isAgentLog) AgentPurple.copy(alpha = 0.3f) else badgeColor.copy(alpha = 0.2f)
+                color = if (isAgentLog) HotPink.copy(alpha = 0.2f) else badgeColor.copy(alpha = 0.2f)
             ) {
                 Text(
                     text = if (isAgentLog) "AGENT" else badgeText,
-                    color = if (isAgentLog) AgentPurple else badgeColor,
+                    color = if (isAgentLog) HotPink else badgeColor,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
@@ -282,34 +292,31 @@ fun ConsoleLogRow(entry: ConsoleMessageEntry) {
 
             Text(
                 text = timeStr,
-                color = Color(0xFF475569),
+                color = Color(0xFF64748B),
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace
             )
 
             if (entry.sourceId.isNotEmpty()) {
-                val shortSource = entry.sourceId.substringAfterLast("/")
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = " • $shortSource:${entry.lineNumber}",
+                    text = "${entry.sourceId.substringAfterLast("/")}:${entry.lineNumber}",
                     color = Color(0xFF475569),
-                    fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace
+                    fontSize = 9.sp,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 1
                 )
             }
         }
 
+        Spacer(modifier = Modifier.height(2.dp))
+
         Text(
             text = entry.message,
-            color = when {
-                entry.level == ConsoleMessageEntry.LogLevel.ERROR -> ErrorRed
-                entry.level == ConsoleMessageEntry.LogLevel.WARNING -> WarningYellow
-                isAgentLog -> Color(0xFFA78BFA)
-                else -> Color(0xFFE2E8F0)
-            },
+            color = if (entry.level == ConsoleMessageEntry.LogLevel.ERROR) ErrorRed else Color(0xFFCBD5E1),
             fontSize = 11.sp,
             fontFamily = FontFamily.Monospace,
-            lineHeight = 15.sp,
-            modifier = Modifier.padding(top = 2.dp)
+            lineHeight = 15.sp
         )
     }
 }

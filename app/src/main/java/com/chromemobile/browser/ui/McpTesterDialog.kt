@@ -1,5 +1,6 @@
 package com.chromemobile.browser.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -50,10 +51,12 @@ import androidx.compose.ui.window.Dialog
 import com.chromemobile.browser.mcp.McpCallToolRequest
 import com.chromemobile.browser.mcp.McpCallToolResponse
 import com.chromemobile.browser.mcp.MobileChromeMcpServer
-import com.chromemobile.browser.ui.theme.AgentAccent
-import com.chromemobile.browser.ui.theme.AgentPurple
-import com.chromemobile.browser.ui.theme.BluePrimary
+import com.chromemobile.browser.ui.theme.AmoledBlack
+import com.chromemobile.browser.ui.theme.AmoledBorder
+import com.chromemobile.browser.ui.theme.AmoledCard
+import com.chromemobile.browser.ui.theme.BlueishGreen
 import com.chromemobile.browser.ui.theme.ErrorRed
+import com.chromemobile.browser.ui.theme.HotPink
 import com.chromemobile.browser.ui.theme.SuccessGreen
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonPrimitive
@@ -103,7 +106,8 @@ fun McpTesterDialog(
                 .fillMaxHeight(0.92f)
                 .padding(4.dp),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+            colors = CardDefaults.cardColors(containerColor = AmoledCard),
+            border = BorderStroke(1.dp, AmoledBorder),
             elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
         ) {
             Column(
@@ -122,7 +126,7 @@ fun McpTesterDialog(
                         Icon(
                             imageVector = Icons.Default.Explore,
                             contentDescription = "MCP Tester",
-                            tint = AgentAccent,
+                            tint = BlueishGreen,
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -162,14 +166,15 @@ fun McpTesterDialog(
                         Surface(
                             modifier = Modifier.clickable { selectedTool = tool },
                             shape = RoundedCornerShape(8.dp),
-                            color = if (isSelected) AgentPurple else Color(0xFF1E293B)
+                            color = if (isSelected) HotPink else AmoledBlack,
+                            border = BorderStroke(1.dp, if (isSelected) HotPink else AmoledBorder)
                         ) {
                             Text(
                                 text = shortLabel,
-                                color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                color = if (isSelected) AmoledBlack else Color(0xFF94A3B8),
                                 fontSize = 11.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                             )
                         }
                     }
@@ -190,8 +195,8 @@ fun McpTesterDialog(
                             shape = RoundedCornerShape(10.dp),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = BluePrimary,
-                                unfocusedBorderColor = Color(0xFF334155),
+                                focusedBorderColor = BlueishGreen,
+                                unfocusedBorderColor = AmoledBorder,
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White
                             )
@@ -208,13 +213,14 @@ fun McpTesterDialog(
                                 Surface(
                                     modifier = Modifier.clickable { navigateUrl = url },
                                     shape = RoundedCornerShape(6.dp),
-                                    color = if (navigateUrl == url) BluePrimary.copy(alpha = 0.3f) else Color(0xFF1E293B)
+                                    color = if (navigateUrl == url) BlueishGreen.copy(alpha = 0.2f) else AmoledBlack,
+                                    border = BorderStroke(1.dp, if (navigateUrl == url) BlueishGreen else AmoledBorder)
                                 ) {
                                     Text(
                                         text = domain,
-                                        color = if (navigateUrl == url) AgentAccent else Color(0xFF94A3B8),
+                                        color = if (navigateUrl == url) BlueishGreen else Color(0xFF94A3B8),
                                         fontSize = 10.sp,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                     )
                                 }
                             }
@@ -232,8 +238,8 @@ fun McpTesterDialog(
                             shape = RoundedCornerShape(10.dp),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = BluePrimary,
-                                unfocusedBorderColor = Color(0xFF334155),
+                                focusedBorderColor = BlueishGreen,
+                                unfocusedBorderColor = AmoledBorder,
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White
                             )
@@ -249,8 +255,8 @@ fun McpTesterDialog(
                             shape = RoundedCornerShape(10.dp),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = BluePrimary,
-                                unfocusedBorderColor = Color(0xFF334155),
+                                focusedBorderColor = BlueishGreen,
+                                unfocusedBorderColor = AmoledBorder,
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White
                             )
@@ -264,8 +270,8 @@ fun McpTesterDialog(
                             shape = RoundedCornerShape(10.dp),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = BluePrimary,
-                                unfocusedBorderColor = Color(0xFF334155),
+                                focusedBorderColor = BlueishGreen,
+                                unfocusedBorderColor = AmoledBorder,
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White
                             )
@@ -291,8 +297,8 @@ fun McpTesterDialog(
                             shape = RoundedCornerShape(10.dp),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = BluePrimary,
-                                unfocusedBorderColor = Color(0xFF334155),
+                                focusedBorderColor = BlueishGreen,
+                                unfocusedBorderColor = AmoledBorder,
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White
                             )
@@ -307,7 +313,7 @@ fun McpTesterDialog(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
                             singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BluePrimary, unfocusedBorderColor = Color(0xFF334155), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BlueishGreen, unfocusedBorderColor = AmoledBorder, focusedTextColor = Color.White, unfocusedTextColor = Color.White)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Username", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
@@ -317,7 +323,7 @@ fun McpTesterDialog(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
                             singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BluePrimary, unfocusedBorderColor = Color(0xFF334155), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BlueishGreen, unfocusedBorderColor = AmoledBorder, focusedTextColor = Color.White, unfocusedTextColor = Color.White)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Password", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
@@ -327,7 +333,7 @@ fun McpTesterDialog(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
                             singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BluePrimary, unfocusedBorderColor = Color(0xFF334155), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BlueishGreen, unfocusedBorderColor = AmoledBorder, focusedTextColor = Color.White, unfocusedTextColor = Color.White)
                         )
                     }
 
@@ -340,7 +346,7 @@ fun McpTesterDialog(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
                             singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BluePrimary, unfocusedBorderColor = Color(0xFF334155), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BlueishGreen, unfocusedBorderColor = AmoledBorder, focusedTextColor = Color.White, unfocusedTextColor = Color.White)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Password (optional)", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
@@ -351,7 +357,7 @@ fun McpTesterDialog(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
                             singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BluePrimary, unfocusedBorderColor = Color(0xFF334155), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BlueishGreen, unfocusedBorderColor = AmoledBorder, focusedTextColor = Color.White, unfocusedTextColor = Color.White)
                         )
                     }
                 }
@@ -397,18 +403,18 @@ fun McpTesterDialog(
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = if (selectedTool.contains("credential") || selectedTool.contains("autofill")) AgentPurple else BluePrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (selectedTool.contains("credential") || selectedTool.contains("autofill")) HotPink else BlueishGreen),
                     shape = RoundedCornerShape(10.dp),
                     enabled = !isExecuting
                 ) {
                     if (isExecuting) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = AmoledBlack, strokeWidth = 2.dp)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Executing MCP Toolcall...")
+                        Text("Executing MCP Toolcall...", color = AmoledBlack, fontWeight = FontWeight.Bold)
                     } else {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = AmoledBlack, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Execute MCP Tool: $selectedTool", fontWeight = FontWeight.Bold)
+                        Text("Execute MCP Tool: $selectedTool", color = AmoledBlack, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -424,7 +430,8 @@ fun McpTesterDialog(
                     Spacer(modifier = Modifier.height(4.dp))
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF020617),
+                        color = AmoledBlack,
+                        border = BorderStroke(1.dp, AmoledBorder),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(

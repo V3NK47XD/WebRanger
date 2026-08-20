@@ -55,9 +55,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chromemobile.browser.agent.LlmConfig
-import com.chromemobile.browser.ui.theme.AgentAccent
-import com.chromemobile.browser.ui.theme.AgentPurple
-import com.chromemobile.browser.ui.theme.BluePrimary
+import com.chromemobile.browser.ui.theme.AmoledBlack
+import com.chromemobile.browser.ui.theme.AmoledBorder
+import com.chromemobile.browser.ui.theme.AmoledCard
+import com.chromemobile.browser.ui.theme.BlueishGreen
+import com.chromemobile.browser.ui.theme.HotPink
 
 data class WebShortcut(
     val title: String,
@@ -77,14 +79,14 @@ fun NewTabHomeScreen(
     val scrollState = rememberScrollState()
 
     val shortcuts = listOf(
-        WebShortcut("Wikipedia", "https://en.wikipedia.org", Icons.Default.MenuBook, listOf(Color(0xFF3B82F6), Color(0xFF1D4ED8))),
-        WebShortcut("Hacker News", "https://news.ycombinator.com", Icons.Default.Newspaper, listOf(Color(0xFFF97316), Color(0xFFEA580C))),
-        WebShortcut("GitHub", "https://github.com", Icons.Default.Code, listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9))),
-        WebShortcut("Reddit", "https://reddit.com", Icons.Default.Public, listOf(Color(0xFFEF4444), Color(0xFFDC2626))),
-        WebShortcut("YouTube", "https://youtube.com", Icons.Default.OndemandVideo, listOf(Color(0xFFE11D48), Color(0xFFBE123C))),
-        WebShortcut("Google", "https://google.com", Icons.Default.Search, listOf(Color(0xFF10B981), Color(0xFF059669))),
-        WebShortcut("ArXiv", "https://arxiv.org", Icons.Default.Language, listOf(Color(0xFF06B6D4), Color(0xFF0891B2))),
-        WebShortcut("AI Research", "https://huggingface.co", Icons.Default.SmartToy, listOf(Color(0xFFA855F7), Color(0xFF7E22CE)))
+        WebShortcut("Wikipedia", "https://en.wikipedia.org", Icons.Default.MenuBook, listOf(Color(0xFF00F5D4), Color(0xFF009688))),
+        WebShortcut("Hacker News", "https://news.ycombinator.com", Icons.Default.Newspaper, listOf(Color(0xFFFF2A85), Color(0xFFE91E63))),
+        WebShortcut("GitHub", "https://github.com", Icons.Default.Code, listOf(Color(0xFF00E5FF), Color(0xFF00B0FF))),
+        WebShortcut("Reddit", "https://reddit.com", Icons.Default.Public, listOf(Color(0xFFFF5252), Color(0xFFFF1744))),
+        WebShortcut("YouTube", "https://youtube.com", Icons.Default.OndemandVideo, listOf(Color(0xFFFF0055), Color(0xFFD50000))),
+        WebShortcut("Google", "https://google.com", Icons.Default.Search, listOf(Color(0xFF00F0B5), Color(0xFF00C853))),
+        WebShortcut("ArXiv", "https://arxiv.org", Icons.Default.Language, listOf(Color(0xFF00E5FF), Color(0xFF0288D1))),
+        WebShortcut("AI Research", "https://huggingface.co", Icons.Default.SmartToy, listOf(Color(0xFFFF2A85), Color(0xFFFF007F)))
     )
 
     val sampleGoals = listOf(
@@ -97,11 +99,7 @@ fun NewTabHomeScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color(0xFF0F172A), Color(0xFF0B1120), Color(0xFF020617))
-                )
-            ),
+            .background(AmoledBlack),
         contentAlignment = Alignment.TopCenter
     ) {
         Column(
@@ -117,8 +115,8 @@ fun NewTabHomeScreen(
             // Engine & Active Model Badge
             Surface(
                 shape = RoundedCornerShape(20.dp),
-                color = Color(0xFF1E293B),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+                color = AmoledCard,
+                border = androidx.compose.foundation.BorderStroke(1.dp, AmoledBorder)
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -128,7 +126,7 @@ fun NewTabHomeScreen(
                         modifier = Modifier
                             .size(8.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF10B981))
+                            .background(BlueishGreen)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
@@ -144,17 +142,18 @@ fun NewTabHomeScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
+            // Brand Title with Hot Pink & Blueish Green Gradient
             Text(
                 text = "WebRanger",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontSize = 30.sp,
+                fontWeight = FontWeight.Black,
                 color = Color.White
             )
 
             Text(
                 text = "Where should the AI agent take you today?",
                 fontSize = 13.sp,
-                color = Color(0xFF94A3B8),
+                color = Color(0xFF8E99A8),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 4.dp, bottom = 18.dp)
             )
@@ -163,8 +162,8 @@ fun NewTabHomeScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)),
+                colors = CardDefaults.cardColors(containerColor = AmoledCard),
+                border = androidx.compose.foundation.BorderStroke(1.dp, AmoledBorder),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
@@ -172,13 +171,13 @@ fun NewTabHomeScreen(
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
                             contentDescription = null,
-                            tint = AgentAccent,
+                            tint = HotPink,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "Autonomous AI Agent",
-                            color = AgentAccent,
+                            color = HotPink,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -192,15 +191,15 @@ fun NewTabHomeScreen(
                         placeholder = {
                             Text(
                                 "e.g. Find cheap flights, summarize articles, search products...",
-                                color = Color(0xFF64748B),
+                                color = Color(0xFF5A6678),
                                 fontSize = 12.5.sp
                             )
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AgentPurple,
-                            unfocusedBorderColor = Color(0xFF334155),
+                            focusedBorderColor = HotPink,
+                            unfocusedBorderColor = AmoledBorder,
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White
                         ),
@@ -217,7 +216,7 @@ fun NewTabHomeScreen(
                                 Icon(
                                     imageVector = Icons.Default.Send,
                                     contentDescription = "Run",
-                                    tint = if (goalInput.isNotBlank()) AgentAccent else Color.Gray,
+                                    tint = if (goalInput.isNotBlank()) BlueishGreen else Color.Gray,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -239,14 +238,14 @@ fun NewTabHomeScreen(
                                 onStartAgentGoal(sample)
                             },
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFF1E293B).copy(alpha = 0.6f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+                        color = AmoledCard,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, AmoledBorder)
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = AgentPurple, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = BlueishGreen, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = sample,
@@ -299,7 +298,7 @@ fun NewTabHomeScreen(
                                 Icon(
                                     imageVector = shortcut.icon,
                                     contentDescription = shortcut.title,
-                                    tint = Color.White,
+                                    tint = AmoledBlack,
                                     modifier = Modifier.size(22.dp)
                                 )
                             }

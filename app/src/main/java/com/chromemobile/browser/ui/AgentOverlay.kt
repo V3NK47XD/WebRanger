@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,10 +32,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -70,7 +67,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -78,17 +74,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.chromemobile.browser.agent.AgentCoordinator
 import com.chromemobile.browser.agent.AgentStatus
 import com.chromemobile.browser.agent.AgentStepLog
 import com.chromemobile.browser.agent.AgentTaskSession
 import com.chromemobile.browser.agent.AgentUIState
 import com.chromemobile.browser.agent.LlmConfig
 import com.chromemobile.browser.agent.LlmPreferences
-import com.chromemobile.browser.ui.theme.AgentAccent
-import com.chromemobile.browser.ui.theme.AgentPurple
-import com.chromemobile.browser.ui.theme.BluePrimary
+import com.chromemobile.browser.ui.theme.AmoledBlack
+import com.chromemobile.browser.ui.theme.AmoledBorder
+import com.chromemobile.browser.ui.theme.AmoledCard
+import com.chromemobile.browser.ui.theme.AmoledSurface
+import com.chromemobile.browser.ui.theme.BlueishGreen
 import com.chromemobile.browser.ui.theme.ErrorRed
+import com.chromemobile.browser.ui.theme.HotPink
 import com.chromemobile.browser.ui.theme.SuccessGreen
 import com.chromemobile.browser.ui.theme.WarningYellow
 
@@ -140,8 +138,8 @@ fun AgentOverlay(
                 .heightIn(min = 280.dp, max = 460.dp)
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-            border = BorderStroke(1.dp, Color(0xFF334155)),
+            colors = CardDefaults.cardColors(containerColor = AmoledCard),
+            border = BorderStroke(1.dp, AmoledBorder),
             elevation = CardDefaults.cardElevation(defaultElevation = 14.dp)
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -162,8 +160,8 @@ fun AgentOverlay(
                             // History Drawer button on the left
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = if (showHistoryDrawer) AgentPurple else Color(0xFF0F172A),
-                                border = BorderStroke(1.dp, Color(0xFF334155)),
+                                color = if (showHistoryDrawer) HotPink else AmoledBlack,
+                                border = BorderStroke(1.dp, if (showHistoryDrawer) HotPink else AmoledBorder),
                                 modifier = Modifier
                                     .size(34.dp)
                                     .clickable { showHistoryDrawer = !showHistoryDrawer }
@@ -172,7 +170,7 @@ fun AgentOverlay(
                                     Icon(
                                         imageVector = Icons.Default.History,
                                         contentDescription = "Session History",
-                                        tint = if (showHistoryDrawer) Color.White else AgentAccent,
+                                        tint = if (showHistoryDrawer) AmoledBlack else BlueishGreen,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
@@ -184,13 +182,13 @@ fun AgentOverlay(
                                 modifier = Modifier
                                     .size(34.dp)
                                     .clip(CircleShape)
-                                    .background(AgentPurple),
+                                    .background(HotPink),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.AutoAwesome,
                                     contentDescription = "AI Agent",
-                                    tint = Color.White,
+                                    tint = AmoledBlack,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -234,8 +232,8 @@ fun AgentOverlay(
                         if (displayedGoal.isNotBlank()) {
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFF0F172A),
-                                border = BorderStroke(1.dp, Color(0xFF334155)),
+                                color = AmoledBlack,
+                                border = BorderStroke(1.dp, AmoledBorder),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -257,14 +255,14 @@ fun AgentOverlay(
                                     if (selectedSessionView != null) {
                                         Surface(
                                             shape = RoundedCornerShape(6.dp),
-                                            color = Color(0xFF334155),
+                                            color = AmoledBorder,
                                             modifier = Modifier
                                                 .clickable { selectedSessionView = null }
                                                 .padding(start = 6.dp)
                                         ) {
                                             Text(
                                                 text = "Current",
-                                                color = AgentAccent,
+                                                color = BlueishGreen,
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -283,7 +281,7 @@ fun AgentOverlay(
                                 .fillMaxWidth()
                                 .weight(1f)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF0F172A))
+                                .background(AmoledBlack)
                                 .padding(8.dp)
                         ) {
                             if (displayedLogs.isEmpty()) {
@@ -313,14 +311,14 @@ fun AgentOverlay(
                             Spacer(modifier = Modifier.height(6.dp))
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
-                                color = SuccessGreen.copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, SuccessGreen.copy(alpha = 0.4f)),
+                                color = BlueishGreen.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, BlueishGreen.copy(alpha = 0.4f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(8.dp)) {
                                     Text(
                                         text = "Final Answer:",
-                                        color = SuccessGreen,
+                                        color = BlueishGreen,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.5.sp
                                     )
@@ -368,10 +366,10 @@ fun AgentOverlay(
                             // Context Memory Toggle Button (Changes color on toggle)
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = if (includeContext) AgentPurple.copy(alpha = 0.3f) else Color.Transparent,
+                                color = if (includeContext) HotPink.copy(alpha = 0.2f) else Color.Transparent,
                                 border = BorderStroke(
                                     width = 1.dp,
-                                    color = if (includeContext) AgentAccent else Color(0xFF334155)
+                                    color = if (includeContext) HotPink else AmoledBorder
                                 ),
                                 modifier = Modifier.clickable { includeContext = !includeContext }
                             ) {
@@ -382,7 +380,7 @@ fun AgentOverlay(
                                     Icon(
                                         imageVector = Icons.Default.Psychology,
                                         contentDescription = "Context Memory",
-                                        tint = if (includeContext) AgentAccent else Color(0xFF64748B),
+                                        tint = if (includeContext) HotPink else Color(0xFF64748B),
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(modifier = Modifier.width(5.dp))
@@ -399,8 +397,8 @@ fun AgentOverlay(
                             Box {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFF0F172A),
-                                    border = BorderStroke(1.dp, Color(0xFF334155)),
+                                    color = AmoledBlack,
+                                    border = BorderStroke(1.dp, AmoledBorder),
                                     modifier = Modifier.clickable { isModelMenuExpanded = !isModelMenuExpanded }
                                 ) {
                                     Row(
@@ -420,7 +418,7 @@ fun AgentOverlay(
                                         Icon(
                                             imageVector = Icons.Default.ArrowDropUp,
                                             contentDescription = "Choose Model",
-                                            tint = AgentAccent,
+                                            tint = BlueishGreen,
                                             modifier = Modifier.size(16.dp)
                                         )
                                     }
@@ -429,11 +427,11 @@ fun AgentOverlay(
                                 DropdownMenu(
                                     expanded = isModelMenuExpanded,
                                     onDismissRequest = { isModelMenuExpanded = false },
-                                    modifier = Modifier.background(Color(0xFF1E293B))
+                                    modifier = Modifier.background(Color(0xFF0F1218))
                                 ) {
                                     Text(
                                         text = "${currentLlmConfig.provider.name} Models",
-                                        color = AgentAccent,
+                                        color = BlueishGreen,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
@@ -450,12 +448,12 @@ fun AgentOverlay(
                                                 ) {
                                                     Text(
                                                         text = modelName,
-                                                        color = if (isSelected) AgentAccent else Color.White,
+                                                        color = if (isSelected) HotPink else Color.White,
                                                         fontSize = 12.sp,
                                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                                     )
                                                     if (isSelected) {
-                                                        Icon(Icons.Default.Check, contentDescription = null, tint = AgentAccent, modifier = Modifier.size(14.dp))
+                                                        Icon(Icons.Default.Check, contentDescription = null, tint = HotPink, modifier = Modifier.size(14.dp))
                                                     }
                                                 }
                                             },
@@ -486,20 +484,20 @@ fun AgentOverlay(
                                 if (uiState.status == AgentStatus.PAUSED) {
                                     Button(
                                         onClick = onResume,
-                                        colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
+                                        colors = ButtonDefaults.buttonColors(containerColor = BlueishGreen),
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
-                                        Icon(Icons.Default.PlayArrow, contentDescription = "Resume", modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.PlayArrow, contentDescription = "Resume", tint = AmoledBlack, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Resume", fontSize = 12.sp)
+                                        Text("Resume", color = AmoledBlack, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                     }
                                 } else {
                                     Button(
                                         onClick = onPause,
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
+                                        colors = ButtonDefaults.buttonColors(containerColor = AmoledBorder),
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
-                                        Icon(Icons.Default.Pause, contentDescription = "Pause", modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.Pause, contentDescription = "Pause", tint = Color.White, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text("Pause", fontSize = 12.sp)
                                     }
@@ -510,28 +508,28 @@ fun AgentOverlay(
                                     colors = ButtonDefaults.buttonColors(containerColor = ErrorRed),
                                     shape = RoundedCornerShape(10.dp)
                                 ) {
-                                    Icon(Icons.Default.Stop, contentDescription = "Stop", modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Stop, contentDescription = "Stop", tint = Color.White, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text("Stop Agent", fontSize = 12.sp)
                                 }
                             }
                         } else {
-                            // Continuous Chat Input Field (Always accessible after task completes / errors / idle)
+                            // Continuous Chat Input Field
                             OutlinedTextField(
                                 value = goalInput,
                                 onValueChange = { goalInput = it },
                                 placeholder = {
                                     Text(
                                         text = if (uiState.status == AgentStatus.COMPLETED) "Enter follow-up task or prompt..." else "Ask WebRanger or enter task...",
-                                        color = Color(0xFF94A3B8),
+                                        color = Color(0xFF64748B),
                                         fontSize = 12.5.sp
                                     )
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = AgentPurple,
-                                    unfocusedBorderColor = Color(0xFF334155),
+                                    focusedBorderColor = HotPink,
+                                    unfocusedBorderColor = AmoledBorder,
                                     focusedTextColor = Color.White,
                                     unfocusedTextColor = Color.White
                                 ),
@@ -549,7 +547,7 @@ fun AgentOverlay(
                                         Icon(
                                             imageVector = Icons.Default.Send,
                                             contentDescription = "Send Goal",
-                                            tint = if (goalInput.isNotBlank()) AgentAccent else Color.Gray,
+                                            tint = if (goalInput.isNotBlank()) BlueishGreen else Color.Gray,
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
@@ -571,9 +569,9 @@ fun AgentOverlay(
                             .widthIn(max = 320.dp)
                             .fillMaxWidth(0.85f)
                             .fillMaxHeight(),
-                        color = Color(0xFF0F172A),
+                        color = AmoledSurface,
                         shape = RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp),
-                        border = BorderStroke(1.dp, Color(0xFF334155)),
+                        border = BorderStroke(1.dp, AmoledBorder),
                         shadowElevation = 16.dp
                     ) {
                         Column(
@@ -587,7 +585,7 @@ fun AgentOverlay(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.History, contentDescription = null, tint = AgentAccent, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.History, contentDescription = null, tint = BlueishGreen, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text("Task Sessions", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
                                 }
@@ -601,8 +599,8 @@ fun AgentOverlay(
                             // New Session Button
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = AgentPurple.copy(alpha = 0.25f),
-                                border = BorderStroke(1.dp, AgentPurple),
+                                color = HotPink.copy(alpha = 0.2f),
+                                border = BorderStroke(1.dp, HotPink),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
@@ -614,14 +612,14 @@ fun AgentOverlay(
                                     modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Add, contentDescription = "New Session", tint = AgentAccent, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Add, contentDescription = "New Session", tint = HotPink, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text("+ New Task Session", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
 
                             Spacer(modifier = Modifier.height(10.dp))
-                            HorizontalDivider(color = Color(0xFF334155))
+                            HorizontalDivider(color = AmoledBorder)
                             Spacer(modifier = Modifier.height(8.dp))
 
                             // Session List
@@ -639,10 +637,11 @@ fun AgentOverlay(
                                     }
                                 } else {
                                     items(sessionHistory) { session ->
+                                        val isSelected = selectedSessionView?.id == session.id
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
-                                            color = if (selectedSessionView?.id == session.id) AgentPurple.copy(alpha = 0.2f) else Color(0xFF1E293B),
-                                            border = BorderStroke(1.dp, if (selectedSessionView?.id == session.id) AgentAccent else Color(0xFF334155)),
+                                            color = if (isSelected) HotPink.copy(alpha = 0.15f) else AmoledCard,
+                                            border = BorderStroke(1.dp, if (isSelected) HotPink else AmoledBorder),
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .padding(vertical = 3.dp)
@@ -672,7 +671,7 @@ fun AgentOverlay(
                                                     )
                                                     Text(
                                                         text = if (session.status == AgentStatus.COMPLETED) "Completed" else "Error",
-                                                        color = if (session.status == AgentStatus.COMPLETED) SuccessGreen else ErrorRed,
+                                                        color = if (session.status == AgentStatus.COMPLETED) BlueishGreen else ErrorRed,
                                                         fontSize = 9.5.sp,
                                                         fontWeight = FontWeight.Bold
                                                     )
@@ -687,8 +686,8 @@ fun AgentOverlay(
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFF1E293B),
-                                    border = BorderStroke(1.dp, Color(0xFF334155)),
+                                    color = AmoledCard,
+                                    border = BorderStroke(1.dp, AmoledBorder),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
@@ -719,13 +718,13 @@ fun AgentOverlay(
 fun AgentStatusBadge(status: AgentStatus, currentTurn: Int, maxTurns: Int) {
     val (label, color) = when (status) {
         AgentStatus.IDLE -> "Ready" to Color(0xFF94A3B8)
-        AgentStatus.PLANNING -> "Planning turn $currentTurn/$maxTurns" to AgentAccent
-        AgentStatus.OBSERVING -> "Observing DOM..." to AgentAccent
-        AgentStatus.REASONING -> "Reasoning..." to AgentPurple
-        AgentStatus.ACTING -> "Executing action..." to BluePrimary
+        AgentStatus.PLANNING -> "Planning turn $currentTurn/$maxTurns" to BlueishGreen
+        AgentStatus.OBSERVING -> "Observing DOM..." to BlueishGreen
+        AgentStatus.REASONING -> "Reasoning..." to HotPink
+        AgentStatus.ACTING -> "Executing action..." to BlueishGreen
         AgentStatus.AWAITING_CONFIRMATION -> "Awaiting confirmation" to WarningYellow
         AgentStatus.PAUSED -> "Paused" to WarningYellow
-        AgentStatus.COMPLETED -> "Task Completed" to SuccessGreen
+        AgentStatus.COMPLETED -> "Task Completed" to BlueishGreen
         AgentStatus.ERROR -> "Error" to ErrorRed
     }
 
@@ -755,10 +754,10 @@ fun AgentStatusBadge(status: AgentStatus, currentTurn: Int, maxTurns: Int) {
 @Composable
 fun LogEntryRow(log: AgentStepLog) {
     val iconColor = if (log.isError) ErrorRed else when (log.phase) {
-        "TOOL", "ACTION" -> AgentPurple
-        "LLM", "REASON", "THOUGHT" -> AgentAccent
-        "RESULT", "FINISH" -> SuccessGreen
-        else -> BluePrimary
+        "TOOL", "ACTION" -> HotPink
+        "LLM", "REASON", "THOUGHT" -> BlueishGreen
+        "RESULT", "FINISH" -> BlueishGreen
+        else -> BlueishGreen
     }
 
     Row(
@@ -769,7 +768,7 @@ fun LogEntryRow(log: AgentStepLog) {
     ) {
         Surface(
             shape = RoundedCornerShape(4.dp),
-            color = iconColor.copy(alpha = 0.2f),
+            color = iconColor.copy(alpha = 0.15f),
             modifier = Modifier.padding(top = 2.dp)
         ) {
             Text(
