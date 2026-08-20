@@ -6,21 +6,32 @@ import com.chromemobile.browser.engine.BrowserEngine
 import com.chromemobile.browser.password.PasswordManager
 import com.chromemobile.browser.password.SavedCredential
 import com.chromemobile.browser.preferences.BrowserPreferences
+import com.chromemobile.browser.tab.TabManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
 
 class AgentToolExecutor(
     private val browserEngine: BrowserEngine,
     private val passwordManager: PasswordManager? = null,
     private val browserPreferences: BrowserPreferences? = null,
+    private val tabManager: TabManager? = null,
     private val json: Json = Json { ignoreUnknownKeys = true; prettyPrint = true }
 ) {
+
+    /**
+     * Dynamically resolve active browser tab's engine to always act on the currently active tab
+     */
+    val currentEngine: BrowserEngine
+        get() = tabManager?.getActiveTab()?.engine ?: browserEngine
 
     private var latestSnapshot: DomSnapshotResponse? = null
 
@@ -38,6 +49,11 @@ class AgentToolExecutor(
                 "get_saved_credentials" -> executeGetSavedCredentials(toolCall)
                 "save_credential" -> executeSaveCredential(toolCall)
                 "autofill_login" -> executeAutofillLogin(toolCall)
+                "list_tabs" -> executeListTabs(toolCall)
+                "switch_tab" -> executeSwitchTab(toolCall)
+                "create_tab" -> executeCreateTab(toolCall)
+                "close_tab" -> executeCloseTab(toolCall)
+                "get_tab_context" -> executeGetTabContext(toolCall)
                 "go_back" -> executeGoBack(toolCall)
                 "finish_task" -> executeFinishTask(toolCall)
                 else -> AgentToolResult(
@@ -63,7 +79,7 @@ class AgentToolExecutor(
         val url = call.arguments["url"]?.jsonPrimitive?.content
             ?: return errorResult(call, "Missing required parameter 'url'")
 
-        browserEngine.loadUrl(url)
+        currentEngine.loadUrl(url)
         delay(1200)
 
         return AgentToolResult(
@@ -76,7 +92,7 @@ class AgentToolExecutor(
 
     suspend fun fetchDomSnapshot(viewportOnly: Boolean = true): DomSnapshotResponse? {
         val script = "window.__mobileAgent ? JSON.stringify(window.__mobileAgent.getDOMSnapshot({ viewportOnly: $viewportOnly })) : null;"
-        val rawJson = browserEngine.evaluateJavascriptAsync(script)
+        val rawJson = currentEngine.evaluateJavascriptAsync(script)
 
         if (rawJson.isNullOrBlank() || rawJson == "null") {
             return null
@@ -119,7 +135,7 @@ class AgentToolExecutor(
     }
 
     private suspend fun executeTakeScreenshot(call: AgentToolCall): AgentToolResult {
-        val bitmap = browserEngine.captureScreenshotAsync()
+        val bitmap = currentEngine.captureScreenshotAsync()
         return if (bitmap != null) {
             val base64 = bitmapToBase64(bitmap)
             AgentToolResult(
@@ -149,7 +165,7 @@ class AgentToolExecutor(
         }
 
         val script = "window.__mobileAgent ? JSON.stringify(window.__mobileAgent.interact('click', { id: $elementId })) : null;"
-        val rawResult = browserEngine.evaluateJavascriptAsync(script)
+        val rawResult = currentEngine.evaluateJavascriptAsync(script)
 
         delay(300)
         return AgentToolResult(
@@ -182,7 +198,7 @@ class AgentToolExecutor(
 
         val escapedText = text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
         val script = "window.__mobileAgent ? JSON.stringify(window.__mobileAgent.interact('type', { id: $elementId, text: '$escapedText', clearFirst: $clearFirst, pressEnter: $pressEnter })) : null;"
-        val rawResult = browserEngine.evaluateJavascriptAsync(script)
+        val rawResult = currentEngine.evaluateJavascriptAsync(script)
 
         delay(300)
         return AgentToolResult(
@@ -205,7 +221,7 @@ class AgentToolExecutor(
             else -> "window.scrollBy({ top: $amount, behavior: 'smooth' });"
         }
 
-        browserEngine.evaluateJavascriptAsync(scrollScript)
+        currentEngine.evaluateJavascriptAsync(scrollScript)
         delay(400)
 
         return AgentToolResult(
@@ -220,7 +236,7 @@ class AgentToolExecutor(
         val jsCode = call.arguments["js_code"]?.jsonPrimitive?.content
             ?: return errorResult(call, "Missing parameter 'js_code'")
 
-        val result = browserEngine.evaluateJavascriptAsync(jsCode)
+        val result = currentEngine.evaluateJavascriptAsync(jsCode)
         return AgentToolResult(
             toolCallId = call.toolCallId,
             name = call.name,
@@ -235,7 +251,7 @@ class AgentToolExecutor(
 
         val script = "window.__mobileAgent ? window.__mobileAgent.waitForStableDOM($timeoutMs, $debounceMs) : null;"
         val result = withTimeoutOrNull(timeoutMs.toLong() + 500) {
-            browserEngine.evaluateJavascriptAsync(script)
+            currentEngine.evaluateJavascriptAsync(script)
         }
 
         return AgentToolResult(
@@ -262,7 +278,7 @@ class AgentToolExecutor(
 
         val targetDomain = call.arguments["domain"]?.jsonPrimitive?.content
             ?: call.arguments["url"]?.jsonPrimitive?.content
-            ?: SavedCredential.normalizeDomain(browserEngine.state.value.currentUrl)
+            ?: SavedCredential.normalizeDomain(currentEngine.state.value.currentUrl)
 
         val creds = if (targetDomain.isNotBlank()) {
             pm.getCredentialsForDomain(targetDomain)
@@ -318,7 +334,7 @@ class AgentToolExecutor(
         val password = call.arguments["password"]?.jsonPrimitive?.content
             ?: return errorResult(call, "Missing required parameter 'password'")
         val title = call.arguments["title"]?.jsonPrimitive?.content ?: domain
-        val url = call.arguments["url"]?.jsonPrimitive?.content ?: browserEngine.state.value.currentUrl
+        val url = call.arguments["url"]?.jsonPrimitive?.content ?: currentEngine.state.value.currentUrl
 
         val saved = pm.saveCredential(
             SavedCredential(
@@ -352,7 +368,7 @@ class AgentToolExecutor(
         val pm = passwordManager
             ?: return errorResult(call, "PasswordManager is not initialized")
 
-        val currentUrl = browserEngine.state.value.currentUrl
+        val currentUrl = currentEngine.state.value.currentUrl
         val currentDomain = SavedCredential.normalizeDomain(currentUrl)
         val savedCreds = pm.getCredentialsForDomain(currentDomain)
 
@@ -420,7 +436,7 @@ class AgentToolExecutor(
             })();
         """.trimIndent()
 
-        val rawResult = browserEngine.evaluateJavascriptAsync(autofillJs)
+        val rawResult = currentEngine.evaluateJavascriptAsync(autofillJs)
         delay(400)
 
         return AgentToolResult(
@@ -431,8 +447,123 @@ class AgentToolExecutor(
         )
     }
 
+    private fun executeListTabs(call: AgentToolCall): AgentToolResult {
+        val tm = tabManager
+        val allTabsJson = buildJsonArray {
+            if (tm != null) {
+                for (tab in tm.tabs.value) {
+                    add(buildJsonObject {
+                        put("id", tab.id)
+                        put("title", tab.engine.state.value.title.ifBlank { "New Tab" })
+                        put("url", tab.engine.state.value.currentUrl)
+                        put("isActive", tab.id == tm.activeTabId.value)
+                        put("hasAiContext", tab.hasAiContext)
+                    })
+                }
+            } else {
+                add(buildJsonObject {
+                    put("id", "main")
+                    put("title", browserEngine.state.value.title.ifBlank { "Active Tab" })
+                    put("url", browserEngine.state.value.currentUrl)
+                    put("isActive", true)
+                    put("hasAiContext", false)
+                })
+            }
+        }
+
+        return AgentToolResult(
+            toolCallId = call.toolCallId,
+            name = call.name,
+            success = true,
+            output = "Open Browser Tabs:\n" + allTabsJson.toString()
+        )
+    }
+
+    private suspend fun executeSwitchTab(call: AgentToolCall): AgentToolResult {
+        val tm = tabManager ?: return errorResult(call, "TabManager not available")
+        val tabId = call.arguments["tab_id"]?.jsonPrimitive?.content
+            ?: return errorResult(call, "Missing required parameter 'tab_id'")
+
+        val target = tm.getTabById(tabId)
+            ?: return errorResult(call, "Tab with id '$tabId' not found. Available tabs: ${tm.tabs.value.map { it.id }}")
+
+        tm.selectTab(tabId)
+        delay(400)
+
+        val active = tm.getActiveTab()
+        return AgentToolResult(
+            toolCallId = call.toolCallId,
+            name = call.name,
+            success = true,
+            output = "Switched to tab '$tabId' (title: '${active.engine.state.value.title}', url: '${active.engine.state.value.currentUrl}'). Tab is now active and visible on screen."
+        )
+    }
+
+    private suspend fun executeCreateTab(call: AgentToolCall): AgentToolResult {
+        val tm = tabManager ?: return errorResult(call, "TabManager not available")
+        val url = call.arguments["url"]?.jsonPrimitive?.content ?: "about:blank"
+
+        val createdTab = tm.createTab(url = url, selectImmediately = true)
+        delay(600)
+
+        return AgentToolResult(
+            toolCallId = call.toolCallId,
+            name = call.name,
+            success = true,
+            output = "Created and switched to new tab '${createdTab.id}' (url: '$url'). Tab is now active and visible on screen."
+        )
+    }
+
+    private fun executeCloseTab(call: AgentToolCall): AgentToolResult {
+        val tm = tabManager ?: return errorResult(call, "TabManager not available")
+        val tabId = call.arguments["tab_id"]?.jsonPrimitive?.content ?: tm.activeTabId.value
+
+        val closed = tm.closeTab(tabId)
+        return AgentToolResult(
+            toolCallId = call.toolCallId,
+            name = call.name,
+            success = closed,
+            output = if (closed) "Closed tab '$tabId'. Active tab is now '${tm.activeTabId.value}'." else "Failed to close tab '$tabId' (not found)"
+        )
+    }
+
+    private fun executeGetTabContext(call: AgentToolCall): AgentToolResult {
+        val tm = tabManager ?: return errorResult(call, "TabManager not available")
+        val tabId = call.arguments["tab_id"]?.jsonPrimitive?.content ?: tm.activeTabId.value
+
+        val targetTab = tm.getTabById(tabId)
+            ?: return errorResult(call, "Tab '$tabId' not found")
+
+        val ctx = targetTab.aiContext
+        if (ctx == null) {
+            return AgentToolResult(
+                toolCallId = call.toolCallId,
+                name = call.name,
+                success = true,
+                output = "No AI context has been recorded for tab '$tabId' (AI agent was never invoked on this tab)."
+            )
+        }
+
+        val serialized = json.encodeToString(
+            mapOf(
+                "tabId" to targetTab.id,
+                "lastGoal" to ctx.lastGoal,
+                "finalAnswer" to (ctx.finalAnswer ?: "Completed"),
+                "totalTurns" to ctx.totalTurns,
+                "lastUpdated" to ctx.lastUpdated
+            )
+        )
+
+        return AgentToolResult(
+            toolCallId = call.toolCallId,
+            name = call.name,
+            success = true,
+            output = "Tab AI Context for '$tabId':\n$serialized"
+        )
+    }
+
     private fun executeGoBack(call: AgentToolCall): AgentToolResult {
-        val wentBack = browserEngine.goBack()
+        val wentBack = currentEngine.goBack()
         return AgentToolResult(
             toolCallId = call.toolCallId,
             name = call.name,

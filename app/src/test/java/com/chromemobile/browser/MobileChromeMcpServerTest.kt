@@ -92,6 +92,11 @@ class MobileChromeMcpServerTest {
         assertTrue(toolNames.contains("chrome_get_saved_credentials"))
         assertTrue(toolNames.contains("chrome_save_credential"))
         assertTrue(toolNames.contains("chrome_autofill_login"))
+        assertTrue(toolNames.contains("chrome_list_tabs"))
+        assertTrue(toolNames.contains("chrome_switch_tab"))
+        assertTrue(toolNames.contains("chrome_create_tab"))
+        assertTrue(toolNames.contains("chrome_close_tab"))
+        assertTrue(toolNames.contains("chrome_get_tab_context"))
         assertTrue(toolNames.contains("chrome_finish_task"))
     }
 
@@ -108,6 +113,21 @@ class MobileChromeMcpServerTest {
         val response = server.callTool(request)
         assertFalse(response.isError)
         assertEquals("https://news.ycombinator.com", fakeEngine.lastLoadedUrl)
+    }
+
+    @Test
+    fun testListTabsFallback() = runBlocking {
+        val fakeEngine = FakeBrowserEngine()
+        val server = MobileChromeMcpServer(browserEngine = fakeEngine)
+
+        val request = McpCallToolRequest(
+            name = "chrome_list_tabs",
+            arguments = emptyMap()
+        )
+
+        val response = server.callTool(request)
+        assertFalse(response.isError)
+        assertTrue(response.getCombinedText().contains("Open Tabs"))
     }
 
     @Test

@@ -20,12 +20,14 @@ import com.chromemobile.browser.engine.WebViewBrowserEngine
 import com.chromemobile.browser.mcp.MobileChromeMcpServer
 import com.chromemobile.browser.password.PasswordManager
 import com.chromemobile.browser.preferences.BrowserPreferences
+import com.chromemobile.browser.tab.TabManager
 import com.chromemobile.browser.ui.BrowserScreen
 import com.chromemobile.browser.ui.onboarding.OnboardingScreen
 import com.chromemobile.browser.ui.theme.ChromeMobileTheme
 
 class MainActivity : ComponentActivity() {
 
+    private lateinit var tabManager: TabManager
     private lateinit var browserEngine: WebViewBrowserEngine
     private lateinit var mcpServer: MobileChromeMcpServer
     private lateinit var llmClient: LlmClient
@@ -46,17 +48,25 @@ class MainActivity : ComponentActivity() {
         browserPreferences = BrowserPreferences(this)
         passwordManager = PasswordManager(this)
 
-        // Initialize Browser Engine with Chromium WebView & Preferences (80% default zoom)
-        browserEngine = WebViewBrowserEngine(
+        // Initialize Multi-Tab Manager
+        tabManager = TabManager(
             context = this,
             browserPreferences = browserPreferences
         )
+        browserEngine = tabManager.getActiveTab().engine
 
-        // Initialize Mobile Chrome MCP Server with Browser Engine, Password Manager & Preferences
+        // If intent has URL, load it in active tab
+        val initialUrl = intent?.dataString
+        if (!initialUrl.isNullOrEmpty()) {
+            browserEngine.loadUrl(initialUrl)
+        }
+
+        // Initialize Mobile Chrome MCP Server with TabManager, Browser Engine & Credentials
         mcpServer = MobileChromeMcpServer(
             browserEngine = browserEngine,
             passwordManager = passwordManager,
-            browserPreferences = browserPreferences
+            browserPreferences = browserPreferences,
+            tabManager = tabManager
         )
 
         // Load persisted LLM Preferences and Onboarding state
@@ -67,19 +77,13 @@ class MainActivity : ComponentActivity() {
         // Initialize LLM Client with loaded configuration
         llmClient = LlmClient(config = currentConfig)
 
-        // Initialize Agent Coordinator with MCP Server
+        // Initialize Agent Coordinator with MCP Server & TabManager
         agentCoordinator = AgentCoordinator(
             browserEngine = browserEngine,
             mcpServer = mcpServer,
-            llmClient = llmClient
+            llmClient = llmClient,
+            tabManager = tabManager
         )
-
-        // If intent has URL, load it
-        val initialUrl = intent?.dataString
-        if (!initialUrl.isNullOrEmpty()) {
-            browserEngine.loadUrl(initialUrl)
-        }
-
         setContent {
             ChromeMobileTheme {
                 Surface(
@@ -103,7 +107,7 @@ class MainActivity : ComponentActivity() {
                             )
                         } else {
                             BrowserScreen(
-                                browserEngine = browserEngine,
+                                tabManager = tabManager,
                                 agentCoordinator = agentCoordinator,
                                 currentLlmConfig = currentConfig,
                                 onSaveLlmConfig = { newConfig ->
@@ -124,6 +128,6 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         agentCoordinator.stop()
-        browserEngine.destroy()
+        tabManager.destroyAll()
     }
 }

@@ -45,6 +45,11 @@ class AgentToolsTest {
         assertTrue(toolNames.contains("get_saved_credentials"))
         assertTrue(toolNames.contains("save_credential"))
         assertTrue(toolNames.contains("autofill_login"))
+        assertTrue(toolNames.contains("list_tabs"))
+        assertTrue(toolNames.contains("switch_tab"))
+        assertTrue(toolNames.contains("create_tab"))
+        assertTrue(toolNames.contains("close_tab"))
+        assertTrue(toolNames.contains("get_tab_context"))
         assertTrue(toolNames.contains("finish_task"))
     }
 
@@ -72,5 +77,15 @@ class AgentToolsTest {
         assertEquals("autofill_login", tool.name)
         assertTrue(tool.parameters.any { it.name == "username" })
         assertTrue(tool.parameters.any { it.name == "password" })
+    }
+
+    @Test
+    fun testTabToolsDefinitions() {
+        assertEquals("list_tabs", AgentTools.LIST_TABS.name)
+        assertEquals("switch_tab", AgentTools.SWITCH_TAB.name)
+        assertTrue(AgentTools.SWITCH_TAB.parameters.any { it.name == "tab_id" && it.required })
+        assertEquals("create_tab", AgentTools.CREATE_TAB.name)
+        assertEquals("close_tab", AgentTools.CLOSE_TAB.name)
+        assertEquals("get_tab_context", AgentTools.GET_TAB_CONTEXT.name)
     }
 }

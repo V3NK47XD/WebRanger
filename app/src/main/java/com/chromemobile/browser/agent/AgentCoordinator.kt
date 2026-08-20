@@ -4,6 +4,7 @@ import com.chromemobile.browser.engine.BrowserEngine
 import com.chromemobile.browser.koog.KoogAIAgent
 import com.chromemobile.browser.koog.KoogBrowserAgentFactory
 import com.chromemobile.browser.mcp.MobileChromeMcpServer
+import com.chromemobile.browser.tab.TabManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -56,6 +57,7 @@ class AgentCoordinator(
     private val browserEngine: BrowserEngine,
     val mcpServer: MobileChromeMcpServer,
     val llmClient: LlmClient,
+    val tabManager: TabManager? = null,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 ) {
 
@@ -77,9 +79,13 @@ class AgentCoordinator(
     fun startGoal(
         goal: String,
         maxTurns: Int = 25,
-        includePreviousContext: Boolean = false
+        includePreviousContext: Boolean = false,
+        onCompleted: ((finalAnswer: String?, logs: List<AgentStepLog>) -> Unit)? = null
     ) {
         cancelCurrentTask()
+
+        val currentTabId = tabManager?.activeTabId?.value ?: "main"
+        val activeEngine = tabManager?.getActiveTab()?.engine ?: browserEngine
 
         val initialLogs = listOf(
             AgentStepLog(
@@ -98,7 +104,7 @@ class AgentCoordinator(
             )
         }
 
-        browserEngine.setAgentInteractionEnabled(true)
+        activeEngine.setAgentInteractionEnabled(true)
 
         val previousContextStrings = if (includePreviousContext) {
             _sessionHistory.value.take(4).map { session ->
@@ -143,6 +149,10 @@ class AgentCoordinator(
                 )
                 _sessionHistory.update { listOf(sessionRecord) + it }
 
+                // Record AI invocation on the specific active tab
+                tabManager?.recordAiInvocation(currentTabId, goal, finalAnswerText, result.logs)
+                onCompleted?.invoke(finalAnswerText, result.logs)
+
             } catch (e: CancellationException) {
                 _uiState.update {
                     it.copy(
@@ -170,8 +180,11 @@ class AgentCoordinator(
                     logs = _uiState.value.logs
                 )
                 _sessionHistory.update { listOf(sessionRecord) + it }
+
+                tabManager?.recordAiInvocation(currentTabId, goal, "Error: $errorMsg", _uiState.value.logs)
+                onCompleted?.invoke("Error: $errorMsg", _uiState.value.logs)
             } finally {
-                browserEngine.setAgentInteractionEnabled(false)
+                activeEngine.setAgentInteractionEnabled(false)
             }
         }
     }
@@ -199,7 +212,7 @@ class AgentCoordinator(
                 activeToolName = null
             )
         }
-        browserEngine.setAgentInteractionEnabled(false)
+        tabManager?.getActiveTab()?.engine?.setAgentInteractionEnabled(false)
     }
 
     private fun cancelCurrentTask() {

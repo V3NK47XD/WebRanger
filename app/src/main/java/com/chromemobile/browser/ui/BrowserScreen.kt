@@ -4,9 +4,10 @@ import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.runtime.key
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
@@ -48,6 +49,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -78,20 +80,27 @@ import com.chromemobile.browser.agent.LlmConfig
 import com.chromemobile.browser.engine.WebViewBrowserEngine
 import com.chromemobile.browser.password.PasswordManager
 import com.chromemobile.browser.preferences.BrowserPreferences
+import com.chromemobile.browser.tab.TabManager
 import com.chromemobile.browser.ui.home.NewTabHomeScreen
+import com.chromemobile.browser.ui.tab.TabSwitcherScreen
 import com.chromemobile.browser.ui.theme.AgentAccent
 import com.chromemobile.browser.ui.theme.AgentPurple
 import com.chromemobile.browser.ui.theme.BluePrimary
 
 @Composable
 fun BrowserScreen(
-    browserEngine: WebViewBrowserEngine,
+    tabManager: TabManager,
     agentCoordinator: AgentCoordinator,
     currentLlmConfig: LlmConfig,
     onSaveLlmConfig: (LlmConfig) -> Unit,
     browserPreferences: BrowserPreferences = BrowserPreferences(LocalContext.current),
     passwordManager: PasswordManager = PasswordManager(LocalContext.current)
 ) {
+    val tabs by tabManager.tabs.collectAsState()
+    val activeTabId by tabManager.activeTabId.collectAsState()
+    val activeTab = remember(activeTabId, tabs) { tabManager.getActiveTab() }
+    val browserEngine = activeTab.engine
+
     val browserState by browserEngine.state.collectAsState()
     val agentState by agentCoordinator.uiState.collectAsState()
     val consoleLogs by browserEngine.consoleLogs.collectAsState()
@@ -101,6 +110,7 @@ fun BrowserScreen(
     var urlInput by remember { mutableStateOf("") }
     var isHomeViewActive by remember { mutableStateOf(true) }
     var showSettingsScreen by remember { mutableStateOf(false) }
+    var showTabSwitcher by remember { mutableStateOf(false) }
     var showAgentOverlay by remember { mutableStateOf(false) }
     var showConsoleDrawer by remember { mutableStateOf(false) }
     var showMcpTesterDialog by remember { mutableStateOf(false) }
@@ -134,10 +144,11 @@ fun BrowserScreen(
     val isUrlBarVisible = isScrollingUp || isHomeViewActive || browserState.isLoading
 
     // Android Hardware / Gesture Back Navigation handler
-    val isBackHandlingActive = showSettingsScreen || showAgentOverlay || showConsoleDrawer || showMcpTesterDialog || !isHomeViewActive
+    val isBackHandlingActive = showTabSwitcher || showSettingsScreen || showAgentOverlay || showConsoleDrawer || showMcpTesterDialog || !isHomeViewActive
 
     BackHandler(enabled = isBackHandlingActive) {
         when {
+            showTabSwitcher -> showTabSwitcher = false
             showSettingsScreen -> showSettingsScreen = false
             showAgentOverlay -> showAgentOverlay = false
             showConsoleDrawer -> showConsoleDrawer = false
@@ -165,22 +176,29 @@ fun BrowserScreen(
                     .fillMaxWidth()
                     .statusBarsPadding()
             ) {
-                // Chromium WebView (Persistent in hierarchy)
-                AndroidView(
-                    factory = {
-                        (browserEngine.webView.parent as? ViewGroup)?.removeView(browserEngine.webView)
-                        browserEngine.webView.apply {
-                            layoutParams = ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT
-                            )
-                        }
-                    },
-                    update = { view ->
-                        view.requestLayout()
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
+                // Chromium WebView (Persistent in hierarchy per active tab)
+                androidx.compose.runtime.key(activeTab.id) {
+                    AndroidView(
+                        factory = {
+                            (browserEngine.webView.parent as? ViewGroup)?.removeView(browserEngine.webView)
+                            browserEngine.webView.apply {
+                                layoutParams = ViewGroup.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                            }
+                        },
+                        update = { view ->
+                            (view.parent as? ViewGroup)?.let { parent ->
+                                if (parent != view.parent) {
+                                    parent.removeView(view)
+                                }
+                            }
+                            view.requestLayout()
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
 
                 // Visual DOM Highlight Badges Overlay for AI Agent
                 ElementHighlightOverlay(
@@ -201,7 +219,14 @@ fun BrowserScreen(
                         onStartAgentGoal = { initialGoal ->
                             isHomeViewActive = false
                             showAgentOverlay = true
-                            agentCoordinator.startGoal(initialGoal, includePreviousContext = false)
+                            val currentTabId = tabManager.activeTabId.value
+                            agentCoordinator.startGoal(
+                                goal = initialGoal,
+                                includePreviousContext = false,
+                                onCompleted = { answer, logs ->
+                                    tabManager.recordAiInvocation(currentTabId, initialGoal, answer, logs)
+                                }
+                            )
                         },
                         modifier = Modifier.fillMaxSize()
                     )
@@ -239,7 +264,7 @@ fun BrowserScreen(
                             HorizontalDivider(color = Color(0xFF334155), thickness = 0.5.dp)
                         }
 
-                        // Row 1: Bottom URL Omnibox Bar (Scroll-aware collapsible with borders)
+                        // Row 1: Bottom URL Omnibox Bar (Omnibox + Reload + Tab Button)
                         AnimatedVisibility(
                             visible = isUrlBarVisible,
                             enter = expandVertically() + fadeIn(),
@@ -318,7 +343,7 @@ fun BrowserScreen(
 
                                 Spacer(modifier = Modifier.width(6.dp))
 
-                                // Reload Button (Outside the text field, clearly visible with border)
+                                // Reload Button (Outside text field, clearly visible with border)
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
                                     color = Color(0xFF0F172A),
@@ -339,28 +364,31 @@ fun BrowserScreen(
 
                                 Spacer(modifier = Modifier.width(4.dp))
 
-                                // Settings Button (Clearly outlined)
+                                // Tab Button [ N ] (Replaces settings in row 1, shows active tabs count)
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
                                     color = Color(0xFF0F172A),
-                                    border = BorderStroke(1.dp, Color(0xFF334155)),
+                                    border = BorderStroke(1.dp, if (tabs.size > 1) BluePrimary else Color(0xFF475569)),
                                     modifier = Modifier
                                         .size(36.dp)
-                                        .clickable { showSettingsScreen = true }
+                                        .clickable {
+                                            tabManager.captureActiveTabThumbnail()
+                                            showTabSwitcher = true
+                                        }
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Settings,
-                                            contentDescription = "Settings",
-                                            tint = AgentAccent,
-                                            modifier = Modifier.size(20.dp)
+                                        Text(
+                                            text = "${tabs.size}",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 13.sp
                                         )
                                     }
                                 }
                             }
                         }
 
-                        // Row 2: Bottom Navigation Controls (Back/Forward, Centered AI Pill, DevTools Menu)
+                        // Row 2: Bottom Navigation Controls (Back/Forward, Centered AI Pill, Settings & DevTools)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -481,102 +509,128 @@ fun BrowserScreen(
                                 }
                             }
 
-                            // Right: Combined Collapsible DevTools Menu with border
-                            Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+                            // Right: Settings Button + Combined Collapsible DevTools Menu
+                            Row(
+                                modifier = Modifier.align(Alignment.CenterEnd),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                // Settings Button (Moved to Row 2 Navbar)
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
                                     color = Color(0xFF0F172A),
                                     border = BorderStroke(1.dp, Color(0xFF334155)),
                                     modifier = Modifier
                                         .size(36.dp)
-                                        .clickable { isDevMenuExpanded = !isDevMenuExpanded }
+                                        .clickable { showSettingsScreen = true }
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
-                                            imageVector = Icons.Default.Terminal,
-                                            contentDescription = "Developer Tools Menu",
-                                            tint = if (consoleLogs.isNotEmpty()) Color(0xFFF59E0B) else Color.White,
+                                            imageVector = Icons.Default.Settings,
+                                            contentDescription = "Settings",
+                                            tint = AgentAccent,
                                             modifier = Modifier.size(19.dp)
                                         )
-                                        if (consoleLogs.isNotEmpty()) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(6.dp)
-                                                    .align(Alignment.TopEnd)
-                                                    .padding(top = 2.dp, end = 2.dp)
-                                                    .background(Color(0xFFF59E0B), CircleShape)
-                                            )
-                                        }
                                     }
                                 }
 
-                                DropdownMenu(
-                                    expanded = isDevMenuExpanded,
-                                    onDismissRequest = { isDevMenuExpanded = false },
-                                    modifier = Modifier.background(Color(0xFF1E293B))
-                                ) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(
-                                                    Icons.Default.Terminal,
-                                                    contentDescription = null,
-                                                    tint = Color(0xFFF59E0B),
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(
-                                                    text = if (consoleLogs.isNotEmpty()) "Console (${consoleLogs.size})" else "Console",
-                                                    color = Color.White,
-                                                    fontSize = 13.sp
+                                // DevTools Menu Button
+                                Box {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color(0xFF0F172A),
+                                        border = BorderStroke(1.dp, Color(0xFF334155)),
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clickable { isDevMenuExpanded = !isDevMenuExpanded }
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.Terminal,
+                                                contentDescription = "Developer Tools Menu",
+                                                tint = if (consoleLogs.isNotEmpty()) Color(0xFFF59E0B) else Color.White,
+                                                modifier = Modifier.size(19.dp)
+                                            )
+                                            if (consoleLogs.isNotEmpty()) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(6.dp)
+                                                        .align(Alignment.TopEnd)
+                                                        .padding(top = 2.dp, end = 2.dp)
+                                                        .background(Color(0xFFF59E0B), CircleShape)
                                                 )
                                             }
-                                        },
-                                        onClick = {
-                                            isDevMenuExpanded = false
-                                            showConsoleDrawer = true
                                         }
-                                    )
+                                    }
 
-                                    DropdownMenuItem(
-                                        text = {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(
-                                                    Icons.Default.Explore,
-                                                    contentDescription = null,
-                                                    tint = AgentAccent,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text("MCP Tool Tester", color = Color.White, fontSize = 13.sp)
-                                            }
-                                        },
-                                        onClick = {
-                                            isDevMenuExpanded = false
-                                            showMcpTesterDialog = true
-                                        }
-                                    )
-
-                                    if (consoleLogs.isNotEmpty()) {
-                                        HorizontalDivider(color = Color(0xFF334155))
+                                    DropdownMenu(
+                                        expanded = isDevMenuExpanded,
+                                        onDismissRequest = { isDevMenuExpanded = false },
+                                        modifier = Modifier.background(Color(0xFF1E293B))
+                                    ) {
                                         DropdownMenuItem(
                                             text = {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Icon(
-                                                        Icons.Default.Delete,
+                                                        Icons.Default.Terminal,
                                                         contentDescription = null,
-                                                        tint = Color(0xFF94A3B8),
+                                                        tint = Color(0xFFF59E0B),
                                                         modifier = Modifier.size(18.dp)
                                                     )
                                                     Spacer(modifier = Modifier.width(8.dp))
-                                                    Text("Clear Console", color = Color(0xFF94A3B8), fontSize = 13.sp)
+                                                    Text(
+                                                        text = if (consoleLogs.isNotEmpty()) "Console (${consoleLogs.size})" else "Console",
+                                                        color = Color.White,
+                                                        fontSize = 13.sp
+                                                    )
                                                 }
                                             },
                                             onClick = {
                                                 isDevMenuExpanded = false
-                                                browserEngine.clearConsoleLogs()
+                                                showConsoleDrawer = true
                                             }
                                         )
+
+                                        DropdownMenuItem(
+                                            text = {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        Icons.Default.Explore,
+                                                        contentDescription = null,
+                                                        tint = AgentAccent,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text("MCP Tool Tester", color = Color.White, fontSize = 13.sp)
+                                                }
+                                            },
+                                            onClick = {
+                                                isDevMenuExpanded = false
+                                                showMcpTesterDialog = true
+                                            }
+                                        )
+
+                                        if (consoleLogs.isNotEmpty()) {
+                                            HorizontalDivider(color = Color(0xFF334155))
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(
+                                                            Icons.Default.Delete,
+                                                            contentDescription = null,
+                                                            tint = Color(0xFF94A3B8),
+                                                            modifier = Modifier.size(18.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Text("Clear Console", color = Color(0xFF94A3B8), fontSize = 13.sp)
+                                                    }
+                                                },
+                                                onClick = {
+                                                    isDevMenuExpanded = false
+                                                    browserEngine.clearConsoleLogs()
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -602,13 +656,32 @@ fun BrowserScreen(
                 currentLlmConfig = currentLlmConfig,
                 onSaveLlmConfig = onSaveLlmConfig,
                 onStartGoal = { goal, includeContext ->
-                    agentCoordinator.startGoal(goal, includePreviousContext = includeContext)
+                    val currentTabId = tabManager.activeTabId.value
+                    agentCoordinator.startGoal(
+                        goal = goal,
+                        includePreviousContext = includeContext,
+                        onCompleted = { answer, logs ->
+                            tabManager.recordAiInvocation(currentTabId, goal, answer, logs)
+                        }
+                    )
                 },
                 onPause = { agentCoordinator.pause() },
                 onResume = { agentCoordinator.resume() },
                 onStop = { agentCoordinator.stop() },
                 onClearHistory = { agentCoordinator.clearSessionHistory() },
                 onDismiss = { showAgentOverlay = false }
+            )
+        }
+
+        // Full Screen Tab Switcher Grid Overlay
+        AnimatedVisibility(
+            visible = showTabSwitcher,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+        ) {
+            TabSwitcherScreen(
+                tabManager = tabManager,
+                onCloseSwitcher = { showTabSwitcher = false }
             )
         }
 

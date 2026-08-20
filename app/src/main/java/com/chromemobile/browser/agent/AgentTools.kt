@@ -192,6 +192,44 @@ object AgentTools {
         )
     )
 
+    val LIST_TABS = AgentToolDefinition(
+        name = "list_tabs",
+        description = "List all open browser tabs with their IDs, titles, URLs, active status, and whether they have stored AI context",
+        parameters = emptyList()
+    )
+
+    val SWITCH_TAB = AgentToolDefinition(
+        name = "switch_tab",
+        description = "Switch the active browser tab to the tab specified by tab_id",
+        parameters = listOf(
+            ToolParameter("tab_id", "string", "Unique ID of the tab to switch to")
+        )
+    )
+
+    val CREATE_TAB = AgentToolDefinition(
+        name = "create_tab",
+        description = "Open a new browser tab with an optional destination URL",
+        parameters = listOf(
+            ToolParameter("url", "string", "URL to load in the new tab (default: 'about:blank')", required = false)
+        )
+    )
+
+    val CLOSE_TAB = AgentToolDefinition(
+        name = "close_tab",
+        description = "Close a browser tab specified by tab_id or the active tab",
+        parameters = listOf(
+            ToolParameter("tab_id", "string", "ID of the tab to close. If omitted, closes the active tab.", required = false)
+        )
+    )
+
+    val GET_TAB_CONTEXT = AgentToolDefinition(
+        name = "get_tab_context",
+        description = "Retrieve the AI agent execution context, last goal, and summary for a specific tab",
+        parameters = listOf(
+            ToolParameter("tab_id", "string", "ID of the tab to inspect. If omitted, uses active tab.", required = false)
+        )
+    )
+
     val GO_BACK = AgentToolDefinition(
         name = "go_back",
         description = "Navigate back to the previous page in history",
@@ -218,6 +256,11 @@ object AgentTools {
         GET_SAVED_CREDENTIALS,
         SAVE_CREDENTIAL,
         AUTOFILL_LOGIN,
+        LIST_TABS,
+        SWITCH_TAB,
+        CREATE_TAB,
+        CLOSE_TAB,
+        GET_TAB_CONTEXT,
         GO_BACK,
         FINISH_TASK
     )

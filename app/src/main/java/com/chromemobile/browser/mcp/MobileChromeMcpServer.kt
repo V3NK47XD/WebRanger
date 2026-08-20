@@ -5,18 +5,21 @@ import android.util.Base64
 import com.chromemobile.browser.agent.DomSnapshotResponse
 import com.chromemobile.browser.agent.SecurityGuard
 import com.chromemobile.browser.engine.BrowserEngine
-import com.chromemobile.browser.engine.WebViewBrowserEngine
 import com.chromemobile.browser.password.PasswordManager
 import com.chromemobile.browser.password.SavedCredential
 import com.chromemobile.browser.preferences.BrowserPreferences
+import com.chromemobile.browser.tab.TabManager
 import kotlinx.coroutines.delay
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
 
 /**
@@ -27,8 +30,15 @@ class MobileChromeMcpServer(
     private val browserEngine: BrowserEngine,
     val passwordManager: PasswordManager? = null,
     val browserPreferences: BrowserPreferences? = null,
+    val tabManager: TabManager? = null,
     private val json: Json = Json { ignoreUnknownKeys = true; prettyPrint = true }
 ) {
+
+    /**
+     * Dynamically resolve active browser tab's engine to always act on the currently active tab
+     */
+    val currentEngine: BrowserEngine
+        get() = tabManager?.getActiveTab()?.engine ?: browserEngine
 
     private var latestSnapshot: DomSnapshotResponse? = null
 
@@ -39,7 +49,7 @@ class MobileChromeMcpServer(
         return listOf(
             McpTool(
                 name = "chrome_navigate",
-                description = "Navigate the mobile browser to a destination URL",
+                description = "Navigate the active browser tab to a destination URL",
                 properties = mapOf(
                     "url" to McpProperty("string", "The URL to navigate to (e.g. 'https://en.wikipedia.org')")
                 ),
@@ -47,7 +57,7 @@ class MobileChromeMcpServer(
             ),
             McpTool(
                 name = "chrome_get_dom_snapshot",
-                description = "Extract current page semantic accessibility tree and visible interactive element index",
+                description = "Extract active page semantic accessibility tree and visible interactive element index",
                 properties = mapOf(
                     "viewport_only" to McpProperty("boolean", "Whether to extract only elements inside the active viewport (default: true)")
                 ),
@@ -55,7 +65,7 @@ class MobileChromeMcpServer(
             ),
             McpTool(
                 name = "chrome_click_element",
-                description = "Perform a mobile touch tap/click on an interactive element by its numeric badge ID",
+                description = "Perform a touch tap/click on an interactive element in the active tab by its numeric badge ID",
                 properties = mapOf(
                     "element_id" to McpProperty("integer", "Numeric element ID from the DOM snapshot to tap/click")
                 ),
@@ -63,7 +73,7 @@ class MobileChromeMcpServer(
             ),
             McpTool(
                 name = "chrome_type_text",
-                description = "Type text into an input field or textarea identified by its element ID",
+                description = "Type text into an input field or textarea identified by its element ID in the active tab",
                 properties = mapOf(
                     "element_id" to McpProperty("integer", "Numeric ID of the input element"),
                     "text" to McpProperty("string", "Text string to type into the field"),
@@ -74,7 +84,7 @@ class MobileChromeMcpServer(
             ),
             McpTool(
                 name = "chrome_scroll",
-                description = "Scroll the mobile viewport up, down, to the top, or to the bottom",
+                description = "Scroll the active mobile viewport up, down, to the top, or to the bottom",
                 properties = mapOf(
                     "direction" to McpProperty("string", "Scroll direction", enumValues = listOf("up", "down", "top", "bottom")),
                     "amount" to McpProperty("integer", "Pixel scroll delta amount (optional)")
@@ -83,7 +93,7 @@ class MobileChromeMcpServer(
             ),
             McpTool(
                 name = "chrome_evaluate_script",
-                description = "Evaluate arbitrary JavaScript in the webpage context and return the result",
+                description = "Evaluate arbitrary JavaScript in the active tab webpage context and return the result",
                 properties = mapOf(
                     "script" to McpProperty("string", "JavaScript code to execute")
                 ),
@@ -91,7 +101,7 @@ class MobileChromeMcpServer(
             ),
             McpTool(
                 name = "chrome_wait",
-                description = "Wait for asynchronous DOM mutations, route changes, or dynamic content to settle",
+                description = "Wait for asynchronous DOM mutations, route changes, or dynamic content to settle in active tab",
                 properties = mapOf(
                     "timeout_ms" to McpProperty("integer", "Max wait duration in milliseconds (default: 2500)"),
                     "debounce_ms" to McpProperty("integer", "Quiet duration to consider stable (default: 300)")
@@ -130,6 +140,44 @@ class MobileChromeMcpServer(
                 required = emptyList()
             ),
             McpTool(
+                name = "chrome_list_tabs",
+                description = "List all open browser tabs with their IDs, titles, URLs, active status, and whether they have stored AI context",
+                properties = emptyMap(),
+                required = emptyList()
+            ),
+            McpTool(
+                name = "chrome_switch_tab",
+                description = "Switch the active browser tab to the tab specified by tab_id and make it visible on screen",
+                properties = mapOf(
+                    "tab_id" to McpProperty("string", "Unique ID of the tab to switch to")
+                ),
+                required = listOf("tab_id")
+            ),
+            McpTool(
+                name = "chrome_create_tab",
+                description = "Open a new browser tab with an optional destination URL and immediately activate it",
+                properties = mapOf(
+                    "url" to McpProperty("string", "URL to load in the new tab (default: 'about:blank')")
+                ),
+                required = emptyList()
+            ),
+            McpTool(
+                name = "chrome_close_tab",
+                description = "Close a browser tab specified by tab_id or the active tab",
+                properties = mapOf(
+                    "tab_id" to McpProperty("string", "ID of the tab to close. If omitted, closes the active tab.")
+                ),
+                required = emptyList()
+            ),
+            McpTool(
+                name = "chrome_get_tab_context",
+                description = "Retrieve the AI agent execution context, last goal, and summary for a specific tab",
+                properties = mapOf(
+                    "tab_id" to McpProperty("string", "ID of the tab to inspect. If omitted, uses active tab.")
+                ),
+                required = emptyList()
+            ),
+            McpTool(
                 name = "chrome_take_screenshot",
                 description = "Capture a visual screenshot image of the active mobile viewport",
                 properties = emptyMap(),
@@ -137,7 +185,7 @@ class MobileChromeMcpServer(
             ),
             McpTool(
                 name = "chrome_go_back",
-                description = "Navigate back to the previous page in history",
+                description = "Navigate back to the previous page in history in active tab",
                 properties = emptyMap(),
                 required = emptyList()
             ),
@@ -160,6 +208,11 @@ class MobileChromeMcpServer(
         val toolName = request.name.lowercase().trim()
         return try {
             when {
+                toolName.contains("list_tab") -> handleListTabs(request)
+                toolName.contains("switch_tab") -> handleSwitchTab(request)
+                toolName.contains("create_tab") || toolName.contains("new_tab") -> handleCreateTab(request)
+                toolName.contains("close_tab") -> handleCloseTab(request)
+                toolName.contains("get_tab_context") -> handleGetTabContext(request)
                 toolName.contains("get_saved_credential") || toolName.contains("get_credential") || toolName.contains("list_credential") -> handleGetSavedCredentials(request)
                 toolName.contains("save_credential") || toolName.contains("store_credential") || toolName.contains("add_credential") -> handleSaveCredential(request)
                 toolName.contains("autofill") || toolName.contains("fill_credential") || toolName.contains("login") -> handleAutofillLogin(request)
@@ -191,7 +244,7 @@ class MobileChromeMcpServer(
             ?: request.arguments["target"]?.jsonPrimitive?.content
             ?: return errorResponse("Missing required 'url' parameter")
 
-        browserEngine.loadUrl(url)
+        currentEngine.loadUrl(url)
         delay(1200)
 
         return McpCallToolResponse(
@@ -201,7 +254,7 @@ class MobileChromeMcpServer(
 
     suspend fun fetchLatestDomSnapshot(viewportOnly: Boolean = true): DomSnapshotResponse? {
         val script = "window.__mobileAgent ? JSON.stringify(window.__mobileAgent.getDOMSnapshot({ viewportOnly: $viewportOnly })) : null;"
-        val rawJson = browserEngine.evaluateJavascriptAsync(script)
+        val rawJson = currentEngine.evaluateJavascriptAsync(script)
 
         if (rawJson.isNullOrBlank() || rawJson == "null") {
             return null
@@ -257,7 +310,7 @@ class MobileChromeMcpServer(
         }
 
         val script = "window.__mobileAgent ? JSON.stringify(window.__mobileAgent.interact('click', { id: $elementId })) : null;"
-        val rawResult = browserEngine.evaluateJavascriptAsync(script)
+        val rawResult = currentEngine.evaluateJavascriptAsync(script)
 
         delay(350)
         return McpCallToolResponse(
@@ -291,7 +344,7 @@ class MobileChromeMcpServer(
 
         val escapedText = text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
         val script = "window.__mobileAgent ? JSON.stringify(window.__mobileAgent.interact('type', { id: $elementId, text: '$escapedText', clearFirst: $clearFirst, pressEnter: $pressEnter })) : null;"
-        val rawResult = browserEngine.evaluateJavascriptAsync(script)
+        val rawResult = currentEngine.evaluateJavascriptAsync(script)
 
         delay(350)
         return McpCallToolResponse(
@@ -311,7 +364,7 @@ class MobileChromeMcpServer(
             else -> "window.scrollBy({ top: $amount, behavior: 'smooth' });"
         }
 
-        browserEngine.evaluateJavascriptAsync(scrollScript)
+        currentEngine.evaluateJavascriptAsync(scrollScript)
         delay(400)
 
         return McpCallToolResponse(
@@ -324,7 +377,7 @@ class MobileChromeMcpServer(
             ?: request.arguments["code"]?.jsonPrimitive?.content
             ?: return errorResponse("Missing parameter 'script'")
 
-        val result = browserEngine.evaluateJavascriptAsync(script)
+        val result = currentEngine.evaluateJavascriptAsync(script)
         return McpCallToolResponse(
             content = listOf(McpContent(type = "text", text = result ?: "undefined"))
         )
@@ -335,7 +388,7 @@ class MobileChromeMcpServer(
         val debounceMs = request.arguments["debounce_ms"]?.jsonPrimitive?.content?.toIntOrNull() ?: 300
 
         val script = "window.__mobileAgent ? window.__mobileAgent.waitForStableDOM($timeoutMs, $debounceMs) : null;"
-        val result = browserEngine.evaluateJavascriptAsync(script)
+        val result = currentEngine.evaluateJavascriptAsync(script)
         delay(300)
 
         return McpCallToolResponse(
@@ -360,7 +413,7 @@ class MobileChromeMcpServer(
 
         val targetDomain = request.arguments["domain"]?.jsonPrimitive?.content
             ?: request.arguments["url"]?.jsonPrimitive?.content
-            ?: SavedCredential.normalizeDomain(browserEngine.state.value.currentUrl)
+            ?: SavedCredential.normalizeDomain(currentEngine.state.value.currentUrl)
 
         val creds = if (targetDomain.isNotBlank()) {
             pm.getCredentialsForDomain(targetDomain)
@@ -421,7 +474,7 @@ class MobileChromeMcpServer(
         val password = request.arguments["password"]?.jsonPrimitive?.content
             ?: return errorResponse("Missing required parameter 'password'")
         val title = request.arguments["title"]?.jsonPrimitive?.content ?: domain
-        val url = request.arguments["url"]?.jsonPrimitive?.content ?: browserEngine.state.value.currentUrl
+        val url = request.arguments["url"]?.jsonPrimitive?.content ?: currentEngine.state.value.currentUrl
 
         val saved = pm.saveCredential(
             SavedCredential(
@@ -458,7 +511,7 @@ class MobileChromeMcpServer(
 
         val pm = passwordManager ?: return errorResponse("PasswordManager is not initialized")
 
-        val currentUrl = browserEngine.state.value.currentUrl
+        val currentUrl = currentEngine.state.value.currentUrl
         val currentDomain = SavedCredential.normalizeDomain(currentUrl)
         val savedCreds = pm.getCredentialsForDomain(currentDomain)
 
@@ -526,7 +579,7 @@ class MobileChromeMcpServer(
             })();
         """.trimIndent()
 
-        val rawResult = browserEngine.evaluateJavascriptAsync(autofillJs)
+        val rawResult = currentEngine.evaluateJavascriptAsync(autofillJs)
         delay(400)
 
         return McpCallToolResponse(
@@ -539,8 +592,101 @@ class MobileChromeMcpServer(
         )
     }
 
+    private fun handleListTabs(request: McpCallToolRequest): McpCallToolResponse {
+        val tm = tabManager
+        val allTabsJson = buildJsonArray {
+            if (tm != null) {
+                for (tab in tm.tabs.value) {
+                    add(buildJsonObject {
+                        put("id", tab.id)
+                        put("title", tab.engine.state.value.title.ifBlank { "New Tab" })
+                        put("url", tab.engine.state.value.currentUrl)
+                        put("isActive", tab.id == tm.activeTabId.value)
+                        put("hasAiContext", tab.hasAiContext)
+                    })
+                }
+            } else {
+                add(buildJsonObject {
+                    put("id", "main")
+                    put("title", browserEngine.state.value.title.ifBlank { "Active Tab" })
+                    put("url", browserEngine.state.value.currentUrl)
+                    put("isActive", true)
+                    put("hasAiContext", false)
+                })
+            }
+        }
+
+        return McpCallToolResponse(
+            content = listOf(McpContent(type = "text", text = "Open Tabs:\n" + allTabsJson.toString()))
+        )
+    }
+
+    private suspend fun handleSwitchTab(request: McpCallToolRequest): McpCallToolResponse {
+        val tm = tabManager ?: return errorResponse("TabManager is not available")
+        val tabId = request.arguments["tab_id"]?.jsonPrimitive?.content
+            ?: return errorResponse("Missing required parameter 'tab_id'")
+
+        val target = tm.getTabById(tabId)
+            ?: return errorResponse("Tab '$tabId' not found. Available tabs: ${tm.tabs.value.map { it.id }}")
+
+        tm.selectTab(tabId)
+        delay(400)
+
+        val active = tm.getActiveTab()
+        return McpCallToolResponse(
+            content = listOf(McpContent(type = "text", text = "Switched to tab '$tabId' (title: '${active.engine.state.value.title}', url: '${active.engine.state.value.currentUrl}'). Tab is now active and visible on screen."))
+        )
+    }
+
+    private suspend fun handleCreateTab(request: McpCallToolRequest): McpCallToolResponse {
+        val tm = tabManager ?: return errorResponse("TabManager is not available")
+        val url = request.arguments["url"]?.jsonPrimitive?.content ?: "about:blank"
+
+        val created = tm.createTab(url = url, selectImmediately = true)
+        delay(600)
+
+        return McpCallToolResponse(
+            content = listOf(McpContent(type = "text", text = "Created and switched to new tab '${created.id}' (url: '$url'). Tab is now active and visible on screen."))
+        )
+    }
+
+    private fun handleCloseTab(request: McpCallToolRequest): McpCallToolResponse {
+        val tm = tabManager ?: return errorResponse("TabManager is not available")
+        val tabId = request.arguments["tab_id"]?.jsonPrimitive?.content ?: tm.activeTabId.value
+
+        val closed = tm.closeTab(tabId)
+        return if (closed) {
+            McpCallToolResponse(content = listOf(McpContent(type = "text", text = "Closed tab '$tabId'. Active tab is now '${tm.activeTabId.value}'.")))
+        } else {
+            errorResponse("Failed to close tab '$tabId' (not found)")
+        }
+    }
+
+    private fun handleGetTabContext(request: McpCallToolRequest): McpCallToolResponse {
+        val tm = tabManager ?: return errorResponse("TabManager is not available")
+        val tabId = request.arguments["tab_id"]?.jsonPrimitive?.content ?: tm.activeTabId.value
+
+        val targetTab = tm.getTabById(tabId) ?: return errorResponse("Tab '$tabId' not found")
+        val ctx = targetTab.aiContext
+            ?: return McpCallToolResponse(content = listOf(McpContent(type = "text", text = "No AI context has been recorded for tab '$tabId' (AI agent was never invoked on this tab).")))
+
+        val serialized = json.encodeToString(
+            mapOf(
+                "tabId" to targetTab.id,
+                "lastGoal" to ctx.lastGoal,
+                "finalAnswer" to (ctx.finalAnswer ?: "Completed"),
+                "totalTurns" to ctx.totalTurns,
+                "lastUpdated" to ctx.lastUpdated
+            )
+        )
+
+        return McpCallToolResponse(
+            content = listOf(McpContent(type = "text", text = "Tab AI Context for '$tabId':\n$serialized"))
+        )
+    }
+
     private suspend fun handleTakeScreenshot(request: McpCallToolRequest): McpCallToolResponse {
-        val bitmap = browserEngine.captureScreenshotAsync()
+        val bitmap = currentEngine.captureScreenshotAsync()
         return if (bitmap != null) {
             val base64 = bitmapToBase64(bitmap)
             McpCallToolResponse(
@@ -558,7 +704,7 @@ class MobileChromeMcpServer(
     }
 
     private fun handleGoBack(request: McpCallToolRequest): McpCallToolResponse {
-        val success = browserEngine.goBack()
+        val success = currentEngine.goBack()
         return McpCallToolResponse(
             content = listOf(McpContent(type = "text", text = if (success) "Navigated back in history" else "No history backward"))
         )
