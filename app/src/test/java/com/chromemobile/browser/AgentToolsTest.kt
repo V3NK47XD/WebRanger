@@ -42,6 +42,35 @@ class AgentToolsTest {
         assertTrue(toolNames.contains("type_text"))
         assertTrue(toolNames.contains("scroll_page"))
         assertTrue(toolNames.contains("execute_console"))
+        assertTrue(toolNames.contains("get_saved_credentials"))
+        assertTrue(toolNames.contains("save_credential"))
+        assertTrue(toolNames.contains("autofill_login"))
         assertTrue(toolNames.contains("finish_task"))
+    }
+
+    @Test
+    fun testGetSavedCredentialsToolDefinition() {
+        val tool = AgentTools.GET_SAVED_CREDENTIALS
+        assertEquals("get_saved_credentials", tool.name)
+        assertTrue(tool.parameters.any { it.name == "domain" })
+        val openAiSchema = tool.toOpenAiSchema()
+        assertNotNull(openAiSchema)
+    }
+
+    @Test
+    fun testSaveCredentialToolDefinition() {
+        val tool = AgentTools.SAVE_CREDENTIAL
+        assertEquals("save_credential", tool.name)
+        assertTrue(tool.parameters.any { it.name == "domain" && it.required })
+        assertTrue(tool.parameters.any { it.name == "username" && it.required })
+        assertTrue(tool.parameters.any { it.name == "password" && it.required })
+    }
+
+    @Test
+    fun testAutofillLoginToolDefinition() {
+        val tool = AgentTools.AUTOFILL_LOGIN
+        assertEquals("autofill_login", tool.name)
+        assertTrue(tool.parameters.any { it.name == "username" })
+        assertTrue(tool.parameters.any { it.name == "password" })
     }
 }

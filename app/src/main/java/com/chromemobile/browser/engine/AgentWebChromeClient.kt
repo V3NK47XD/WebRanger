@@ -44,6 +44,15 @@ class AgentWebChromeClient(
 
     override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
         if (consoleMessage != null) {
+            val messageText = consoleMessage.message() ?: ""
+
+            // Filter out benign feature-policy warnings from third-party iframes (e.g. YouTube web-share, attribution-reporting)
+            if (messageText.contains("unrecognized feature", ignoreCase = true) &&
+                (messageText.contains("web-share", ignoreCase = true) || messageText.contains("attribution-reporting", ignoreCase = true))
+            ) {
+                return true
+            }
+
             val level = when (consoleMessage.messageLevel()) {
                 ConsoleMessage.MessageLevel.DEBUG -> ConsoleMessageEntry.LogLevel.DEBUG
                 ConsoleMessage.MessageLevel.LOG -> ConsoleMessageEntry.LogLevel.LOG
@@ -54,7 +63,7 @@ class AgentWebChromeClient(
             }
 
             val entry = ConsoleMessageEntry(
-                message = consoleMessage.message() ?: "",
+                message = messageText,
                 sourceId = consoleMessage.sourceId() ?: "",
                 lineNumber = consoleMessage.lineNumber(),
                 level = level

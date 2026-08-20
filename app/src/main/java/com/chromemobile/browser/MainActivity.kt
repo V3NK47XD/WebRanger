@@ -18,6 +18,8 @@ import com.chromemobile.browser.agent.LlmConfig
 import com.chromemobile.browser.agent.LlmPreferences
 import com.chromemobile.browser.engine.WebViewBrowserEngine
 import com.chromemobile.browser.mcp.MobileChromeMcpServer
+import com.chromemobile.browser.password.PasswordManager
+import com.chromemobile.browser.preferences.BrowserPreferences
 import com.chromemobile.browser.ui.BrowserScreen
 import com.chromemobile.browser.ui.onboarding.OnboardingScreen
 import com.chromemobile.browser.ui.theme.ChromeMobileTheme
@@ -29,6 +31,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var llmClient: LlmClient
     private lateinit var agentCoordinator: AgentCoordinator
     private lateinit var llmPreferences: LlmPreferences
+    private lateinit var browserPreferences: BrowserPreferences
+    private lateinit var passwordManager: PasswordManager
 
     private var currentConfig by mutableStateOf(LlmConfig())
     private var isOnboardingCompleted by mutableStateOf(false)
@@ -38,11 +42,22 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        // Initialize Browser Engine with Chromium WebView
-        browserEngine = WebViewBrowserEngine(context = this)
+        // Initialize Browser Preferences & Password Manager
+        browserPreferences = BrowserPreferences(this)
+        passwordManager = PasswordManager(this)
 
-        // Initialize Mobile Chrome MCP Server
-        mcpServer = MobileChromeMcpServer(browserEngine = browserEngine)
+        // Initialize Browser Engine with Chromium WebView & Preferences (80% default zoom)
+        browserEngine = WebViewBrowserEngine(
+            context = this,
+            browserPreferences = browserPreferences
+        )
+
+        // Initialize Mobile Chrome MCP Server with Browser Engine, Password Manager & Preferences
+        mcpServer = MobileChromeMcpServer(
+            browserEngine = browserEngine,
+            passwordManager = passwordManager,
+            browserPreferences = browserPreferences
+        )
 
         // Load persisted LLM Preferences and Onboarding state
         llmPreferences = LlmPreferences(this)
@@ -95,7 +110,9 @@ class MainActivity : ComponentActivity() {
                                     currentConfig = newConfig
                                     llmPreferences.saveConfig(newConfig)
                                     llmClient.config = newConfig
-                                }
+                                },
+                                browserPreferences = browserPreferences,
+                                passwordManager = passwordManager
                             )
                         }
                     }

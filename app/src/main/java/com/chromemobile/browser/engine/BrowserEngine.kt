@@ -44,5 +44,16 @@ interface BrowserEngine {
 
     fun setAgentInteractionEnabled(enabled: Boolean)
     fun clearConsoleLogs()
+
+    fun setZoomFactor(percent: Int)
+    fun getZoomFactor(): Int
+    fun clearBrowsingData(
+        clearHistory: Boolean = true,
+        clearCookies: Boolean = true,
+        clearCache: Boolean = true,
+        clearStorage: Boolean = true,
+        onComplete: (() -> Unit)? = null
+    )
+
     fun destroy()
 }

@@ -40,17 +40,26 @@ fun ElementHighlightOverlay(
     )
 
     Canvas(modifier = modifier.fillMaxSize()) {
+        // Avoid drawing if the element covers >90% of the screen (e.g. full-screen body or main container)
+        val w = highlightedRect.width.toFloat() * density
+        val h = highlightedRect.height.toFloat() * density
+        if (w >= size.width * 0.92f && h >= size.height * 0.85f) {
+            return@Canvas
+        }
+
         val left = highlightedRect.left.toFloat() * density
         val top = highlightedRect.top.toFloat() * density
-        val width = highlightedRect.width.toFloat() * density
-        val height = highlightedRect.height.toFloat() * density
+        val width = w.coerceAtMost(size.width - left)
+        val height = h.coerceAtMost(size.height - top)
 
-        // Draw glowing background highlight
+        if (width <= 0 || height <= 0) return@Canvas
+
+        // Draw subtle glowing background highlight
         drawRoundRect(
-            color = Color(0x407C3AED).copy(alpha = alpha * 0.3f),
-            topLeft = Offset(left - 4f, top - 4f),
-            size = Size(width + 8f, height + 8f),
-            cornerRadius = CornerRadius(8f, 8f)
+            color = Color(0x307C3AED).copy(alpha = alpha * 0.25f),
+            topLeft = Offset(left - 3f, top - 3f),
+            size = Size(width + 6f, height + 6f),
+            cornerRadius = CornerRadius(6f, 6f)
         )
 
         // Draw animated border stroke
@@ -59,7 +68,7 @@ fun ElementHighlightOverlay(
             topLeft = Offset(left - 2f, top - 2f),
             size = Size(width + 4f, height + 4f),
             cornerRadius = CornerRadius(6f, 6f),
-            style = Stroke(width = 3.5f)
+            style = Stroke(width = 3f)
         )
     }
 }

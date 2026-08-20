@@ -45,6 +45,7 @@ data class AgentUIState(
     val maxTurns: Int = 25,
     val logs: List<AgentStepLog> = emptyList(),
     val currentReasoning: String = "",
+    val activeToolName: String? = null,
     val highlightedRect: ElementRect? = null,
     val finalAnswer: String? = null,
     val errorMessage: String? = null,
@@ -54,12 +55,15 @@ data class AgentUIState(
 class AgentCoordinator(
     private val browserEngine: BrowserEngine,
     val mcpServer: MobileChromeMcpServer,
-    private val llmClient: LlmClient,
+    val llmClient: LlmClient,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 ) {
 
     private val _uiState = MutableStateFlow(AgentUIState())
     val uiState: StateFlow<AgentUIState> = _uiState.asStateFlow()
+
+    private val _sessionHistory = MutableStateFlow<List<AgentTaskSession>>(emptyList())
+    val sessionHistory: StateFlow<List<AgentTaskSession>> = _sessionHistory.asStateFlow()
 
     private var agentJob: Job? = null
     private var isPaused = false
@@ -70,25 +74,39 @@ class AgentCoordinator(
         llmClient = llmClient
     )
 
-    fun startGoal(goal: String, maxTurns: Int = 25) {
+    fun startGoal(
+        goal: String,
+        maxTurns: Int = 25,
+        includePreviousContext: Boolean = false
+    ) {
         cancelCurrentTask()
+
+        val initialLogs = listOf(
+            AgentStepLog(
+                turnNumber = 0,
+                phase = "INIT",
+                message = "Starting WebRanger Agent for: \"$goal\""
+            )
+        )
 
         _uiState.update {
             AgentUIState(
                 status = AgentStatus.PLANNING,
                 goal = goal,
                 maxTurns = maxTurns,
-                logs = listOf(
-                    AgentStepLog(
-                        turnNumber = 0,
-                        phase = "INIT",
-                        message = "Starting Koog Agent for goal: \"$goal\""
-                    )
-                )
+                logs = initialLogs
             )
         }
 
         browserEngine.setAgentInteractionEnabled(true)
+
+        val previousContextStrings = if (includePreviousContext) {
+            _sessionHistory.value.take(4).map { session ->
+                "Previous Task: \"${session.goal}\" -> Result: ${session.finalAnswer ?: "Finished"}"
+            }
+        } else {
+            emptyList()
+        }
 
         agentJob = scope.launch {
             try {
@@ -97,22 +115,40 @@ class AgentCoordinator(
                     maxTurns = maxTurns,
                     uiStateFlow = _uiState,
                     isPausedProvider = { isPaused },
+                    initialContextHistory = previousContextStrings,
                     onTurnLog = { log ->
                         _uiState.update { it.copy(logs = it.logs + log) }
                     }
                 )
 
+                val finalStatus = if (result.success) AgentStatus.COMPLETED else AgentStatus.ERROR
+                val finalAnswerText = result.finalAnswer.ifBlank { "Task finished" }
+
                 _uiState.update {
                     it.copy(
-                        status = AgentStatus.COMPLETED,
-                        finalAnswer = result.finalAnswer
+                        status = finalStatus,
+                        finalAnswer = finalAnswerText,
+                        highlightedRect = null,
+                        activeToolName = null
                     )
                 }
+
+                // Record completed task into session history
+                val sessionRecord = AgentTaskSession(
+                    goal = goal,
+                    finalAnswer = finalAnswerText,
+                    status = finalStatus,
+                    turns = result.totalTurns,
+                    logs = result.logs
+                )
+                _sessionHistory.update { listOf(sessionRecord) + it }
+
             } catch (e: CancellationException) {
                 _uiState.update {
                     it.copy(
                         status = AgentStatus.IDLE,
-                        logs = it.logs + AgentStepLog(turnNumber = 0, phase = "CANCEL", message = "Koog Agent stopped by user.")
+                        highlightedRect = null,
+                        activeToolName = null
                     )
                 }
             } catch (e: Exception) {
@@ -121,14 +157,27 @@ class AgentCoordinator(
                     it.copy(
                         status = AgentStatus.ERROR,
                         errorMessage = errorMsg,
-                        logs = it.logs + AgentStepLog(turnNumber = 0, phase = "ERROR", message = "Koog Agent Error: $errorMsg", isError = true)
+                        highlightedRect = null,
+                        activeToolName = null
                     )
                 }
+
+                val sessionRecord = AgentTaskSession(
+                    goal = goal,
+                    finalAnswer = "Error: $errorMsg",
+                    status = AgentStatus.ERROR,
+                    turns = 1,
+                    logs = _uiState.value.logs
+                )
+                _sessionHistory.update { listOf(sessionRecord) + it }
             } finally {
                 browserEngine.setAgentInteractionEnabled(false)
-                _uiState.update { it.copy(highlightedRect = null) }
             }
         }
+    }
+
+    fun clearSessionHistory() {
+        _sessionHistory.value = emptyList()
     }
 
     fun pause() {
@@ -138,18 +187,19 @@ class AgentCoordinator(
 
     fun resume() {
         isPaused = false
-        _uiState.update { it.copy(status = AgentStatus.REASONING) }
+        _uiState.update { it.copy(status = AgentStatus.PLANNING) }
     }
 
     fun stop() {
         cancelCurrentTask()
-        browserEngine.setAgentInteractionEnabled(false)
         _uiState.update {
             it.copy(
                 status = AgentStatus.IDLE,
-                highlightedRect = null
+                highlightedRect = null,
+                activeToolName = null
             )
         }
+        browserEngine.setAgentInteractionEnabled(false)
     }
 
     private fun cancelCurrentTask() {

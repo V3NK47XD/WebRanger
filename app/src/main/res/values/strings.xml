@@ -1,9 +1,9 @@
 <resources>
-    <string name="app_name">Chrome Mobile AI</string>
+    <string name="app_name">WebRanger</string>
     <string name="url_placeholder">Search or enter URL</string>
-    <string name="agent_goal_placeholder">What would you like the AI agent to do on this page?</string>
-    <string name="agent_thinking">AI Agent thinking...</string>
+    <string name="agent_goal_placeholder">What would you like WebRanger to do on this page?</string>
+    <string name="agent_thinking">WebRanger thinking...</string>
     <string name="agent_acting">Executing action...</string>
     <string name="agent_completed">Goal accomplished!</string>
-    <string name="agent_error">Agent encountered an error</string>
+    <string name="agent_error">WebRanger encountered an error</string>
 </resources>

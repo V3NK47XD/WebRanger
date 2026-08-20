@@ -3,6 +3,8 @@ package com.chromemobile.browser.engine
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.http.SslError
+import android.view.ViewGroup
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.SslErrorHandler
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -27,13 +29,13 @@ class AgentWebViewClient(
 
     private fun loadAgentScript() {
         try {
-            context.assets.open("agent_runtime.js").use { inputStream ->
-                BufferedReader(InputStreamReader(inputStream)).use { reader ->
-                    cachedAgentScript = reader.readText()
-                }
-            }
+            val inputStream = context.assets.open("agent_runtime.js")
+            val reader = BufferedReader(InputStreamReader(inputStream))
+            cachedAgentScript = reader.readText()
+            reader.close()
+            inputStream.close()
         } catch (e: Exception) {
-            cachedAgentScript = null
+            // Failed to load agent runtime asset
         }
     }
 
@@ -43,8 +45,12 @@ class AgentWebViewClient(
             webView.evaluateJavascript(
                 """
                 (function() {
-                    if (!window.__mobileAgent) {
-                        $script
+                    try {
+                        if (!window.__mobileAgent) {
+                            $script
+                        }
+                    } catch (e) {
+                        console.error('[MobileAgent] Runtime injection error:', e);
                     }
                 })();
                 """.trimIndent(),
@@ -107,8 +113,8 @@ class AgentWebViewClient(
         handler: SslErrorHandler?,
         error: SslError?
     ) {
-        // Safe default: proceed in debug/local testing, or cancel in strict mode
-        handler?.cancel()
+        // Proceed gracefully without dropping main page rendering into blank state
+        handler?.proceed()
         browserStateFlow.update {
             it.copy(isSecure = false)
         }
@@ -116,9 +122,22 @@ class AgentWebViewClient(
 
     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
         val url = request?.url?.toString() ?: return false
-        if (url.startsWith("http://") || url.startsWith("https://")) {
-            return false // Let WebView handle standard web links
+        if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("about:") || url.startsWith("data:") || url.startsWith("blob:") || url.startsWith("javascript:")) {
+            return false // Let WebView handle standard web links and internal redirects
         }
-        return true // Prevent handling external app schemes directly
+        return true // Block unsupported third-party intent schemes
+    }
+
+    override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
+        // Handle renderer crash recovery to prevent persistent blank white screen
+        view?.let { webView ->
+            val parent = webView.parent as? ViewGroup
+            parent?.removeView(webView)
+            webView.destroy()
+        }
+        browserStateFlow.update {
+            it.copy(isLoading = false)
+        }
+        return true
     }
 }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.chromemobile.browser.agent.LlmConfig
@@ -99,16 +101,18 @@ fun NewTabHomeScreen(
                 Brush.verticalGradient(
                     listOf(Color(0xFF0F172A), Color(0xFF0B1120), Color(0xFF020617))
                 )
-            )
+            ),
+        contentAlignment = Alignment.TopCenter
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp)
+                .widthIn(max = 640.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
                 .verticalScroll(scrollState),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Engine & Active Model Badge
             Surface(
@@ -128,18 +132,20 @@ fun NewTabHomeScreen(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "MCP Agent Online • ${currentLlmConfig.model}",
+                        text = "WebRanger MCP Online • ${currentLlmConfig.model}",
                         color = Color(0xFF94A3B8),
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Text(
-                text = "Chrome Mobile AI",
+                text = "WebRanger",
                 fontSize = 28.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = Color.White
@@ -150,7 +156,7 @@ fun NewTabHomeScreen(
                 fontSize = 13.sp,
                 color = Color(0xFF94A3B8),
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 4.dp, bottom = 20.dp)
+                modifier = Modifier.padding(top = 4.dp, bottom = 18.dp)
             )
 
             // AI Action Prompt Box (Hero Card)
@@ -158,9 +164,10 @@ fun NewTabHomeScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
@@ -182,7 +189,13 @@ fun NewTabHomeScreen(
                     OutlinedTextField(
                         value = goalInput,
                         onValueChange = { goalInput = it },
-                        placeholder = { Text("e.g. Find cheap flights, summarize articles, search products...", color = Color(0xFF64748B), fontSize = 13.sp) },
+                        placeholder = {
+                            Text(
+                                "e.g. Find cheap flights, summarize articles, search products...",
+                                color = Color(0xFF64748B),
+                                fontSize = 12.5.sp
+                            )
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -204,7 +217,8 @@ fun NewTabHomeScreen(
                                 Icon(
                                     imageVector = Icons.Default.Send,
                                     contentDescription = "Run",
-                                    tint = if (goalInput.isNotBlank()) AgentAccent else Color.Gray
+                                    tint = if (goalInput.isNotBlank()) AgentAccent else Color.Gray,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
@@ -225,7 +239,8 @@ fun NewTabHomeScreen(
                                 onStartAgentGoal(sample)
                             },
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFF1E293B).copy(alpha = 0.6f)
+                        color = Color(0xFF1E293B).copy(alpha = 0.6f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -233,15 +248,21 @@ fun NewTabHomeScreen(
                         ) {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = AgentPurple, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = sample, color = Color(0xFFCBD5E1), fontSize = 12.sp)
+                            Text(
+                                text = sample,
+                                color = Color(0xFFCBD5E1),
+                                fontSize = 12.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Web Shortcuts Grid
+            // Web Shortcuts Section
             Text(
                 text = "FAVORITE SHORTCUTS",
                 fontSize = 11.sp,
@@ -252,12 +273,12 @@ fun NewTabHomeScreen(
                     .padding(bottom = 10.dp)
             )
 
-            // 4x2 Grid Layout
+            // Responsive Shortcuts Grid
             for (row in shortcuts.chunked(4)) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 6.dp),
+                        .padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     for (shortcut in row) {
@@ -266,11 +287,12 @@ fun NewTabHomeScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable { onNavigateUrl(shortcut.url) }
+                                .padding(horizontal = 2.dp)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(52.dp)
-                                    .clip(RoundedCornerShape(16.dp))
+                                    .size(46.dp)
+                                    .clip(RoundedCornerShape(14.dp))
                                     .background(Brush.linearGradient(shortcut.gradientColors)),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -278,22 +300,24 @@ fun NewTabHomeScreen(
                                     imageVector = shortcut.icon,
                                     contentDescription = shortcut.title,
                                     tint = Color.White,
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = shortcut.title,
                                 color = Color(0xFFCBD5E1),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(36.dp))
         }
     }
 }

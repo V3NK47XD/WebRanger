@@ -21,22 +21,11 @@ object SecurityGuard {
     fun checkElementInteractionSafety(
         action: String,
         element: SnapshotElement?,
-        typedText: String?
+        typedText: String?,
+        allowPasswordAccess: Boolean = false
     ): SafetyCheckResult {
         if (element == null) {
             return SafetyCheckResult(isSafe = true)
-        }
-
-        // Check if element is password
-        if (element.type.equals("password", ignoreCase = true) ||
-            PASSWORD_PATTERN.matcher(element.name).find() ||
-            PASSWORD_PATTERN.matcher(element.placeholder).find()
-        ) {
-            return SafetyCheckResult(
-                isSafe = false,
-                requiresUserConfirmation = true,
-                promptMessage = "The AI Agent is attempting to enter credentials into a password field. Allow?"
-            )
         }
 
         // Check if element is a credit card / payment input
@@ -48,6 +37,22 @@ object SecurityGuard {
                 isSafe = false,
                 requiresUserConfirmation = true,
                 promptMessage = "The AI Agent is attempting to fill payment or credit card information. Allow?"
+            )
+        }
+
+        // Check if element is password
+        if (element.type.equals("password", ignoreCase = true) ||
+            PASSWORD_PATTERN.matcher(element.name).find() ||
+            PASSWORD_PATTERN.matcher(element.placeholder).find()
+        ) {
+            if (allowPasswordAccess) {
+                // User has explicitly enabled AI password tool access in Settings
+                return SafetyCheckResult(isSafe = true)
+            }
+            return SafetyCheckResult(
+                isSafe = false,
+                requiresUserConfirmation = true,
+                promptMessage = "The AI Agent is attempting to enter credentials into a password field. Allow?"
             )
         }
 

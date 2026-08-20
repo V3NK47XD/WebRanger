@@ -38,9 +38,11 @@ data class AgentToolDefinition(
                             put(param.name, buildJsonObject {
                                 put("type", param.type)
                                 put("description", param.description)
-                                if (param.enumValues != null) {
+                                if (!param.enumValues.isNullOrEmpty()) {
                                     put("enum", buildJsonArray {
-                                        for (v in param.enumValues) add(kotlinx.serialization.json.JsonPrimitive(v))
+                                        for (v in param.enumValues) {
+                                            add(kotlinx.serialization.json.JsonPrimitive(v))
+                                        }
                                     })
                                 }
                             })
@@ -70,9 +72,11 @@ data class AgentToolDefinition(
                         put(param.name, buildJsonObject {
                             put("type", param.type)
                             put("description", param.description)
-                            if (param.enumValues != null) {
+                            if (!param.enumValues.isNullOrEmpty()) {
                                 put("enum", buildJsonArray {
-                                    for (v in param.enumValues) add(kotlinx.serialization.json.JsonPrimitive(v))
+                                    for (v in param.enumValues) {
+                                        add(kotlinx.serialization.json.JsonPrimitive(v))
+                                    }
                                 })
                             }
                         })
@@ -157,6 +161,37 @@ object AgentTools {
         )
     )
 
+    val GET_SAVED_CREDENTIALS = AgentToolDefinition(
+        name = "get_saved_credentials",
+        description = "Retrieve saved passwords and account credentials from Chrome Password Manager for a given domain or the active webpage",
+        parameters = listOf(
+            ToolParameter("domain", "string", "Target website domain (e.g. 'github.com', 'wikipedia.org'). If omitted, checks active webpage domain.", required = false),
+            ToolParameter("url", "string", "Specific target URL to match credentials against", required = false)
+        )
+    )
+
+    val SAVE_CREDENTIAL = AgentToolDefinition(
+        name = "save_credential",
+        description = "Save a new username and password credential to the Chrome Password Manager",
+        parameters = listOf(
+            ToolParameter("domain", "string", "Website domain (e.g. 'wikipedia.org', 'github.com')"),
+            ToolParameter("username", "string", "Username, handle, or email address"),
+            ToolParameter("password", "string", "Password for the account"),
+            ToolParameter("title", "string", "Friendly account title or label", required = false),
+            ToolParameter("url", "string", "Full login or registration URL", required = false)
+        )
+    )
+
+    val AUTOFILL_LOGIN = AgentToolDefinition(
+        name = "autofill_login",
+        description = "Automatically detect username and password fields on the current webpage and fill them using saved credentials from Password Manager",
+        parameters = listOf(
+            ToolParameter("username", "string", "Specific username to fill if multiple credentials exist for this domain", required = false),
+            ToolParameter("password", "string", "Specific password to fill (optional, auto-resolved from Password Manager if omitted)", required = false),
+            ToolParameter("auto_submit", "boolean", "Whether to submit the login form automatically after filling", required = false)
+        )
+    )
+
     val GO_BACK = AgentToolDefinition(
         name = "go_back",
         description = "Navigate back to the previous page in history",
@@ -180,6 +215,9 @@ object AgentTools {
         SCROLL_PAGE,
         EXECUTE_CONSOLE,
         WAIT_FOR_CONDITION,
+        GET_SAVED_CREDENTIALS,
+        SAVE_CREDENTIAL,
+        AUTOFILL_LOGIN,
         GO_BACK,
         FINISH_TASK
     )

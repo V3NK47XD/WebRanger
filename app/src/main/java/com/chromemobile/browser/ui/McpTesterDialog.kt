@@ -2,6 +2,7 @@ package com.chromemobile.browser.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -69,6 +70,11 @@ fun McpTesterDialog(
     var textInput by remember { mutableStateOf("Chromium") }
     var scriptInput by remember { mutableStateOf("document.title") }
 
+    // Credential tool inputs
+    var domainInput by remember { mutableStateOf("wikipedia.org") }
+    var usernameInput by remember { mutableStateOf("wiki_researcher") }
+    var passwordInput by remember { mutableStateOf("WikiPassword2026!") }
+
     var isExecuting by remember { mutableStateOf(false) }
     var lastResponse by remember { mutableStateOf<McpCallToolResponse?>(null) }
     var executionTimeMs by remember { mutableStateOf<Long?>(null) }
@@ -77,14 +83,24 @@ fun McpTesterDialog(
         "https://en.wikipedia.org",
         "https://news.ycombinator.com",
         "https://www.google.com",
-        "https://reddit.com"
+        "https://github.com/login"
+    )
+
+    val toolsList = listOf(
+        "chrome_navigate",
+        "chrome_get_dom_snapshot",
+        "chrome_click_element",
+        "chrome_type_text",
+        "chrome_get_saved_credentials",
+        "chrome_save_credential",
+        "chrome_autofill_login"
     )
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.88f)
+                .fillMaxHeight(0.92f)
                 .padding(4.dp),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
@@ -127,18 +143,20 @@ fun McpTesterDialog(
                 }
 
                 Text(
-                    text = "Execute live Model Context Protocol (MCP) toolcalls directly on the browser engine.",
+                    text = "Execute live Model Context Protocol (MCP) toolcalls directly on the browser engine & password manager.",
                     color = Color(0xFF94A3B8),
                     fontSize = 11.sp,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
 
-                // Tool selector tabs
+                // Tool selector tabs (scrollable)
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    listOf("chrome_navigate", "chrome_get_dom_snapshot", "chrome_click_element", "chrome_type_text").forEach { tool ->
+                    toolsList.forEach { tool ->
                         val isSelected = selectedTool == tool
                         val shortLabel = tool.removePrefix("chrome_")
                         Surface(
@@ -261,6 +279,81 @@ fun McpTesterDialog(
                             fontSize = 12.sp
                         )
                     }
+
+                    "chrome_get_saved_credentials" -> {
+                        Text("Target Domain (optional)", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = domainInput,
+                            onValueChange = { domainInput = it },
+                            placeholder = { Text("wikipedia.org (leave empty for active page)", color = Color(0xFF64748B)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = BluePrimary,
+                                unfocusedBorderColor = Color(0xFF334155),
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            )
+                        )
+                    }
+
+                    "chrome_save_credential" -> {
+                        Text("Domain", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(
+                            value = domainInput,
+                            onValueChange = { domainInput = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BluePrimary, unfocusedBorderColor = Color(0xFF334155), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Username", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(
+                            value = usernameInput,
+                            onValueChange = { usernameInput = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BluePrimary, unfocusedBorderColor = Color(0xFF334155), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Password", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(
+                            value = passwordInput,
+                            onValueChange = { passwordInput = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BluePrimary, unfocusedBorderColor = Color(0xFF334155), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                        )
+                    }
+
+                    "chrome_autofill_login" -> {
+                        Text("Username (optional)", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(
+                            value = usernameInput,
+                            onValueChange = { usernameInput = it },
+                            placeholder = { Text("Leave blank to auto-resolve saved account", color = Color(0xFF64748B)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BluePrimary, unfocusedBorderColor = Color(0xFF334155), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Password (optional)", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(
+                            value = passwordInput,
+                            onValueChange = { passwordInput = it },
+                            placeholder = { Text("Leave blank to auto-resolve from Password Manager", color = Color(0xFF64748B)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BluePrimary, unfocusedBorderColor = Color(0xFF334155), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -281,6 +374,16 @@ fun McpTesterDialog(
                                     "text" to JsonPrimitive(textInput),
                                     "press_enter" to JsonPrimitive(true)
                                 )
+                                "chrome_get_saved_credentials" -> mapOf("domain" to JsonPrimitive(domainInput))
+                                "chrome_save_credential" -> mapOf(
+                                    "domain" to JsonPrimitive(domainInput),
+                                    "username" to JsonPrimitive(usernameInput),
+                                    "password" to JsonPrimitive(passwordInput)
+                                )
+                                "chrome_autofill_login" -> mapOf(
+                                    "username" to JsonPrimitive(usernameInput),
+                                    "password" to JsonPrimitive(passwordInput)
+                                )
                                 else -> emptyMap()
                             }
 
@@ -294,7 +397,7 @@ fun McpTesterDialog(
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = if (selectedTool == "chrome_navigate") BluePrimary else AgentPurple),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (selectedTool.contains("credential") || selectedTool.contains("autofill")) AgentPurple else BluePrimary),
                     shape = RoundedCornerShape(10.dp),
                     enabled = !isExecuting
                 ) {

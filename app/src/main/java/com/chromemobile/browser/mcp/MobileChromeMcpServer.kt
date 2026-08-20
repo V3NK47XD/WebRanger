@@ -6,7 +6,11 @@ import com.chromemobile.browser.agent.DomSnapshotResponse
 import com.chromemobile.browser.agent.SecurityGuard
 import com.chromemobile.browser.engine.BrowserEngine
 import com.chromemobile.browser.engine.WebViewBrowserEngine
+import com.chromemobile.browser.password.PasswordManager
+import com.chromemobile.browser.password.SavedCredential
+import com.chromemobile.browser.preferences.BrowserPreferences
 import kotlinx.coroutines.delay
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
@@ -21,7 +25,9 @@ import java.io.ByteArrayOutputStream
  */
 class MobileChromeMcpServer(
     private val browserEngine: BrowserEngine,
-    private val json: Json = Json { ignoreUnknownKeys = true }
+    val passwordManager: PasswordManager? = null,
+    val browserPreferences: BrowserPreferences? = null,
+    private val json: Json = Json { ignoreUnknownKeys = true; prettyPrint = true }
 ) {
 
     private var latestSnapshot: DomSnapshotResponse? = null
@@ -93,6 +99,37 @@ class MobileChromeMcpServer(
                 required = emptyList()
             ),
             McpTool(
+                name = "chrome_get_saved_credentials",
+                description = "Retrieve saved passwords and account credentials from Chrome Password Manager for a given domain or the active webpage",
+                properties = mapOf(
+                    "domain" to McpProperty("string", "Target website domain (e.g. 'github.com', 'wikipedia.org'). If omitted, uses active webpage domain."),
+                    "url" to McpProperty("string", "Target URL to match credentials against")
+                ),
+                required = emptyList()
+            ),
+            McpTool(
+                name = "chrome_save_credential",
+                description = "Save a new username and password credential to the Chrome Password Manager",
+                properties = mapOf(
+                    "domain" to McpProperty("string", "Website domain (e.g. 'wikipedia.org', 'github.com')"),
+                    "username" to McpProperty("string", "Username, email, or handle"),
+                    "password" to McpProperty("string", "Account password"),
+                    "title" to McpProperty("string", "Friendly account title or label"),
+                    "url" to McpProperty("string", "Full login or registration URL")
+                ),
+                required = listOf("domain", "username", "password")
+            ),
+            McpTool(
+                name = "chrome_autofill_login",
+                description = "Automatically detect login fields (username and password) on current webpage and fill them using saved credentials from Password Manager",
+                properties = mapOf(
+                    "username" to McpProperty("string", "Specific username to fill if multiple accounts exist for this domain"),
+                    "password" to McpProperty("string", "Specific password to fill (optional, auto-resolved from Password Manager)"),
+                    "auto_submit" to McpProperty("boolean", "Whether to submit the login form automatically after filling")
+                ),
+                required = emptyList()
+            ),
+            McpTool(
                 name = "chrome_take_screenshot",
                 description = "Capture a visual screenshot image of the active mobile viewport",
                 properties = emptyMap(),
@@ -123,6 +160,9 @@ class MobileChromeMcpServer(
         val toolName = request.name.lowercase().trim()
         return try {
             when {
+                toolName.contains("get_saved_credential") || toolName.contains("get_credential") || toolName.contains("list_credential") -> handleGetSavedCredentials(request)
+                toolName.contains("save_credential") || toolName.contains("store_credential") || toolName.contains("add_credential") -> handleSaveCredential(request)
+                toolName.contains("autofill") || toolName.contains("fill_credential") || toolName.contains("login") -> handleAutofillLogin(request)
                 toolName.contains("navigate") || toolName == "open_url" -> handleNavigate(request)
                 toolName.contains("snapshot") || toolName.contains("dom") -> handleGetDomSnapshot(request)
                 toolName.contains("click") || toolName.contains("tap") -> handleClickElement(request)
@@ -160,37 +200,27 @@ class MobileChromeMcpServer(
     }
 
     suspend fun fetchLatestDomSnapshot(viewportOnly: Boolean = true): DomSnapshotResponse? {
-        val script = """
-            (function() {
-                if (window.__mobileAgent && window.__mobileAgent.getDOMSnapshot) {
-                    return JSON.stringify(window.__mobileAgent.getDOMSnapshot({ viewportOnly: $viewportOnly }));
-                }
-                return null;
-            })();
-        """.trimIndent()
+        val script = "window.__mobileAgent ? JSON.stringify(window.__mobileAgent.getDOMSnapshot({ viewportOnly: $viewportOnly })) : null;"
+        val rawJson = browserEngine.evaluateJavascriptAsync(script)
 
-        var rawResult = browserEngine.evaluateJavascriptAsync(script)
-        
-        // If runtime not injected yet, wait briefly and retry once
-        if (rawResult.isNullOrEmpty() || rawResult == "null" || rawResult == "undefined") {
-            delay(400)
-            rawResult = browserEngine.evaluateJavascriptAsync(script)
-        }
-
-        if (rawResult.isNullOrEmpty() || rawResult == "null" || rawResult == "undefined") {
+        if (rawJson.isNullOrBlank() || rawJson == "null") {
             return null
         }
 
-        val cleanedJson = if (rawResult.startsWith("\"") && rawResult.endsWith("\"")) {
-            json.decodeFromString<String>(rawResult)
+        val cleanJson = if (rawJson.startsWith("\"") && rawJson.endsWith("\"")) {
+            try {
+                json.decodeFromString<String>(rawJson)
+            } catch (e: Exception) {
+                rawJson
+            }
         } else {
-            rawResult
+            rawJson
         }
 
         return try {
-            val parsed = json.decodeFromString<DomSnapshotResponse>(cleanedJson)
-            latestSnapshot = parsed
-            parsed
+            val response = json.decodeFromString<DomSnapshotResponse>(cleanJson)
+            latestSnapshot = response
+            response
         } catch (e: Exception) {
             null
         }
@@ -198,60 +228,40 @@ class MobileChromeMcpServer(
 
     private suspend fun handleGetDomSnapshot(request: McpCallToolRequest): McpCallToolResponse {
         val viewportOnly = request.arguments["viewport_only"]?.jsonPrimitive?.booleanOrNull ?: true
-        val snapshot = fetchLatestDomSnapshot(viewportOnly)
+        val snapshot = fetchLatestDomSnapshot(viewportOnly = viewportOnly)
 
         return if (snapshot != null) {
-            val sanitizedText = SecurityGuard.sanitizeSnapshotText(snapshot.treeText)
+            val sanitized = SecurityGuard.sanitizeSnapshotText(snapshot.treeText)
             McpCallToolResponse(
-                content = listOf(McpContent(type = "text", text = sanitizedText))
+                content = listOf(McpContent(type = "text", text = sanitized))
             )
         } else {
-            errorResponse("Failed to extract DOM snapshot: agent runtime not ready on current page")
+            errorResponse("Failed to extract DOM snapshot. The page may still be loading or the agent runtime has not initialized yet.")
         }
     }
 
     private suspend fun handleClickElement(request: McpCallToolRequest): McpCallToolResponse {
-        // Robust ID parsing: accept integer or string
         val elementId = request.arguments["element_id"]?.jsonPrimitive?.content?.toIntOrNull()
             ?: request.arguments["id"]?.jsonPrimitive?.content?.toIntOrNull()
-            ?: request.arguments["elementId"]?.jsonPrimitive?.content?.toIntOrNull()
-            ?: return errorResponse("Missing required 'element_id' parameter")
+            ?: return errorResponse("Missing required numeric parameter 'element_id'")
 
-        val script = """
-            (function() {
-                if (window.__mobileAgent && window.__mobileAgent.interact) {
-                    return JSON.stringify(window.__mobileAgent.interact('click', { id: $elementId }));
-                }
-                return JSON.stringify({ success: false, error: 'Runtime not initialized' });
-            })();
-        """.trimIndent()
-
-        val rawResult = browserEngine.evaluateJavascriptAsync(script)
-
-        // Try parsing coordinates to also fire a native physical tap on the WebView
-        try {
-            if (!rawResult.isNullOrEmpty() && rawResult != "null") {
-                val cleaned = if (rawResult.startsWith("\"") && rawResult.endsWith("\"")) {
-                    json.decodeFromString<String>(rawResult)
-                } else rawResult
-
-                val obj = json.parseToJsonElement(cleaned).jsonObject
-                val coordsObj = obj["coords"]?.jsonObject
-                val x = coordsObj?.get("x")?.jsonPrimitive?.floatOrNull
-                val y = coordsObj?.get("y")?.jsonPrimitive?.floatOrNull
-
-                if (x != null && y != null) {
-                    (browserEngine as? WebViewBrowserEngine)?.dispatchNativeTap(x, y)
-                }
-            }
-        } catch (e: Exception) {
-            // Ignore coordinate parse issues
+        val element = latestSnapshot?.elements?.firstOrNull { it.id == elementId }
+        val safetyCheck = SecurityGuard.checkElementInteractionSafety(
+            action = "click",
+            element = element,
+            typedText = null,
+            allowPasswordAccess = browserPreferences?.sharePasswordsWithLlm ?: false
+        )
+        if (!safetyCheck.isSafe) {
+            return errorResponse("SecurityGuard blocked tap: ${safetyCheck.promptMessage}")
         }
 
-        delay(400)
+        val script = "window.__mobileAgent ? JSON.stringify(window.__mobileAgent.interact('click', { id: $elementId })) : null;"
+        val rawResult = browserEngine.evaluateJavascriptAsync(script)
 
+        delay(350)
         return McpCallToolResponse(
-            content = listOf(McpContent(type = "text", text = "Tapped element #$elementId. Result: $rawResult")),
+            content = listOf(McpContent(type = "text", text = "Tapped element #$elementId (${element?.name ?: element?.tag ?: ""}). Result: $rawResult")),
             highlightedElementId = elementId
         )
     }
@@ -259,35 +269,31 @@ class MobileChromeMcpServer(
     private suspend fun handleTypeText(request: McpCallToolRequest): McpCallToolResponse {
         val elementId = request.arguments["element_id"]?.jsonPrimitive?.content?.toIntOrNull()
             ?: request.arguments["id"]?.jsonPrimitive?.content?.toIntOrNull()
-            ?: request.arguments["elementId"]?.jsonPrimitive?.content?.toIntOrNull()
-            ?: return errorResponse("Missing required 'element_id' parameter")
+            ?: return errorResponse("Missing required numeric parameter 'element_id'")
 
         val text = request.arguments["text"]?.jsonPrimitive?.content
             ?: request.arguments["value"]?.jsonPrimitive?.content
-            ?: return errorResponse("Missing required 'text' parameter")
+            ?: return errorResponse("Missing required string parameter 'text'")
 
-        val clearFirst = request.arguments["clear_first"]?.jsonPrimitive?.booleanOrNull ?: false
-        val pressEnter = request.arguments["press_enter"]?.jsonPrimitive?.booleanOrNull ?: true // Default true for searches
+        val clearFirst = request.arguments["clear_first"]?.jsonPrimitive?.booleanOrNull ?: true
+        val pressEnter = request.arguments["press_enter"]?.jsonPrimitive?.booleanOrNull ?: false
 
-        val escapedText = text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
+        val element = latestSnapshot?.elements?.firstOrNull { it.id == elementId }
+        val safetyCheck = SecurityGuard.checkElementInteractionSafety(
+            action = "type",
+            element = element,
+            typedText = text,
+            allowPasswordAccess = browserPreferences?.sharePasswordsWithLlm ?: false
+        )
+        if (!safetyCheck.isSafe && !safetyCheck.requiresUserConfirmation) {
+            return errorResponse("SecurityGuard blocked typing into sensitive field")
+        }
 
-        val script = """
-            (function() {
-                if (window.__mobileAgent && window.__mobileAgent.interact) {
-                    return JSON.stringify(window.__mobileAgent.interact('type', {
-                        id: $elementId,
-                        text: "$escapedText",
-                        clearFirst: $clearFirst,
-                        pressEnter: $pressEnter
-                    }));
-                }
-                return JSON.stringify({ success: false, error: 'Runtime not initialized' });
-            })();
-        """.trimIndent()
-
+        val escapedText = text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+        val script = "window.__mobileAgent ? JSON.stringify(window.__mobileAgent.interact('type', { id: $elementId, text: '$escapedText', clearFirst: $clearFirst, pressEnter: $pressEnter })) : null;"
         val rawResult = browserEngine.evaluateJavascriptAsync(script)
-        delay(400)
 
+        delay(350)
         return McpCallToolResponse(
             content = listOf(McpContent(type = "text", text = "Typed into element #$elementId. Result: $rawResult")),
             highlightedElementId = elementId
@@ -296,49 +302,31 @@ class MobileChromeMcpServer(
 
     private suspend fun handleScroll(request: McpCallToolRequest): McpCallToolResponse {
         val direction = request.arguments["direction"]?.jsonPrimitive?.content ?: "down"
-        val amount = request.arguments["amount"]?.jsonPrimitive?.content?.toIntOrNull() ?: 600
+        val amount = request.arguments["amount"]?.jsonPrimitive?.content?.toIntOrNull() ?: 450
 
-        val script = """
-            (function() {
-                if (window.__mobileAgent && window.__mobileAgent.interact) {
-                    return JSON.stringify(window.__mobileAgent.interact('scroll', {
-                        direction: '$direction',
-                        amount: $amount
-                    }));
-                }
-                return JSON.stringify({ success: false, error: 'Runtime not initialized' });
-            })();
-        """.trimIndent()
+        val scrollScript = when (direction.lowercase()) {
+            "top" -> "window.scrollTo({ top: 0, behavior: 'smooth' });"
+            "bottom" -> "window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });"
+            "up" -> "window.scrollBy({ top: -$amount, behavior: 'smooth' });"
+            else -> "window.scrollBy({ top: $amount, behavior: 'smooth' });"
+        }
 
-        val rawResult = browserEngine.evaluateJavascriptAsync(script)
+        browserEngine.evaluateJavascriptAsync(scrollScript)
         delay(400)
 
         return McpCallToolResponse(
-            content = listOf(McpContent(type = "text", text = "Scrolled $direction by $amount px. Result: $rawResult"))
+            content = listOf(McpContent(type = "text", text = "Scrolled viewport $direction by $amount px"))
         )
     }
 
     private suspend fun handleEvaluateScript(request: McpCallToolRequest): McpCallToolResponse {
-        val scriptCode = request.arguments["script"]?.jsonPrimitive?.content
+        val script = request.arguments["script"]?.jsonPrimitive?.content
             ?: request.arguments["code"]?.jsonPrimitive?.content
-            ?: request.arguments["js_code"]?.jsonPrimitive?.content
-            ?: return errorResponse("Missing required 'script' parameter")
+            ?: return errorResponse("Missing parameter 'script'")
 
-        val escapedCode = scriptCode.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
-
-        val script = """
-            (function() {
-                if (window.__mobileAgent && window.__mobileAgent.executeConsole) {
-                    return JSON.stringify(window.__mobileAgent.executeConsole("$escapedCode"));
-                }
-                return JSON.stringify({ success: false, error: 'Runtime not initialized' });
-            })();
-        """.trimIndent()
-
-        val rawResult = browserEngine.evaluateJavascriptAsync(script)
-
+        val result = browserEngine.evaluateJavascriptAsync(script)
         return McpCallToolResponse(
-            content = listOf(McpContent(type = "text", text = "Script output: $rawResult"))
+            content = listOf(McpContent(type = "text", text = result ?: "undefined"))
         )
     }
 
@@ -346,53 +334,238 @@ class MobileChromeMcpServer(
         val timeoutMs = request.arguments["timeout_ms"]?.jsonPrimitive?.content?.toIntOrNull() ?: 2500
         val debounceMs = request.arguments["debounce_ms"]?.jsonPrimitive?.content?.toIntOrNull() ?: 300
 
-        val script = """
+        val script = "window.__mobileAgent ? window.__mobileAgent.waitForStableDOM($timeoutMs, $debounceMs) : null;"
+        val result = browserEngine.evaluateJavascriptAsync(script)
+        delay(300)
+
+        return McpCallToolResponse(
+            content = listOf(McpContent(type = "text", text = "Waited for DOM stabilization: ${result ?: "ready"}"))
+        )
+    }
+
+    private fun handleGetSavedCredentials(request: McpCallToolRequest): McpCallToolResponse {
+        if (browserPreferences != null && !browserPreferences.sharePasswordsWithLlm) {
+            return McpCallToolResponse(
+                content = listOf(
+                    McpContent(
+                        type = "text",
+                        text = "Password sharing with AI / MCP tools is currently disabled in Chrome Settings. The user can toggle this on under Settings -> AI Agent & MCP -> 'Allow AI & MCP tools to access saved passwords'."
+                    )
+                ),
+                isError = true
+            )
+        }
+
+        val pm = passwordManager ?: return errorResponse("PasswordManager is not initialized")
+
+        val targetDomain = request.arguments["domain"]?.jsonPrimitive?.content
+            ?: request.arguments["url"]?.jsonPrimitive?.content
+            ?: SavedCredential.normalizeDomain(browserEngine.state.value.currentUrl)
+
+        val creds = if (targetDomain.isNotBlank()) {
+            pm.getCredentialsForDomain(targetDomain)
+        } else {
+            pm.getAllCredentials()
+        }
+
+        if (creds.isEmpty()) {
+            return McpCallToolResponse(
+                content = listOf(
+                    McpContent(
+                        type = "text",
+                        text = "No saved credentials found for domain: '$targetDomain'. (Available domains: ${pm.getAllCredentials().map { it.domain }.distinct()})"
+                    )
+                )
+            )
+        }
+
+        val jsonResult = json.encodeToString(creds.map {
+            mapOf(
+                "domain" to it.domain,
+                "username" to it.username,
+                "password" to it.password,
+                "title" to it.title,
+                "originUrl" to it.originUrl
+            )
+        })
+
+        return McpCallToolResponse(
+            content = listOf(
+                McpContent(
+                    type = "text",
+                    text = "Found ${creds.size} saved credential(s) for '$targetDomain':\n$jsonResult"
+                )
+            )
+        )
+    }
+
+    private fun handleSaveCredential(request: McpCallToolRequest): McpCallToolResponse {
+        if (browserPreferences != null && !browserPreferences.sharePasswordsWithLlm) {
+            return McpCallToolResponse(
+                content = listOf(
+                    McpContent(
+                        type = "text",
+                        text = "Password access is disabled in Settings. Please enable 'Allow AI & MCP tools to access saved passwords'."
+                    )
+                ),
+                isError = true
+            )
+        }
+
+        val pm = passwordManager ?: return errorResponse("PasswordManager is not initialized")
+
+        val domain = request.arguments["domain"]?.jsonPrimitive?.content
+            ?: return errorResponse("Missing required parameter 'domain'")
+        val username = request.arguments["username"]?.jsonPrimitive?.content
+            ?: return errorResponse("Missing required parameter 'username'")
+        val password = request.arguments["password"]?.jsonPrimitive?.content
+            ?: return errorResponse("Missing required parameter 'password'")
+        val title = request.arguments["title"]?.jsonPrimitive?.content ?: domain
+        val url = request.arguments["url"]?.jsonPrimitive?.content ?: browserEngine.state.value.currentUrl
+
+        val saved = pm.saveCredential(
+            SavedCredential(
+                domain = domain,
+                originUrl = url,
+                username = username,
+                password = password,
+                title = title
+            )
+        )
+
+        return McpCallToolResponse(
+            content = listOf(
+                McpContent(
+                    type = "text",
+                    text = "Successfully saved credential for user '${saved.username}' on domain '${saved.domain}'."
+                )
+            )
+        )
+    }
+
+    private suspend fun handleAutofillLogin(request: McpCallToolRequest): McpCallToolResponse {
+        if (browserPreferences != null && !browserPreferences.sharePasswordsWithLlm) {
+            return McpCallToolResponse(
+                content = listOf(
+                    McpContent(
+                        type = "text",
+                        text = "Password sharing with AI / MCP tools is disabled in Chrome Settings. Enable 'Allow AI & MCP tools to access saved passwords'."
+                    )
+                ),
+                isError = true
+            )
+        }
+
+        val pm = passwordManager ?: return errorResponse("PasswordManager is not initialized")
+
+        val currentUrl = browserEngine.state.value.currentUrl
+        val currentDomain = SavedCredential.normalizeDomain(currentUrl)
+        val savedCreds = pm.getCredentialsForDomain(currentDomain)
+
+        val requestedUsername = request.arguments["username"]?.jsonPrimitive?.content
+        val requestedPassword = request.arguments["password"]?.jsonPrimitive?.content
+        val autoSubmit = request.arguments["auto_submit"]?.jsonPrimitive?.booleanOrNull ?: false
+
+        val selectedCred = if (!requestedUsername.isNullOrBlank()) {
+            savedCreds.firstOrNull { it.username.equals(requestedUsername, ignoreCase = true) }
+        } else {
+            savedCreds.firstOrNull()
+        }
+
+        val usernameToFill = requestedUsername ?: selectedCred?.username
+        val passwordToFill = requestedPassword ?: selectedCred?.password
+
+        if (usernameToFill.isNullOrBlank() || passwordToFill.isNullOrBlank()) {
+            return errorResponse("No matching saved credentials found for domain '$currentDomain'. Please save or provide username and password.")
+        }
+
+        selectedCred?.let { pm.markUsed(it.id) }
+
+        val escapedUser = usernameToFill.replace("\\", "\\\\").replace("'", "\\'")
+        val escapedPass = passwordToFill.replace("\\", "\\\\").replace("'", "\\'")
+
+        val autofillJs = """
             (function() {
-                if (window.__mobileAgent && window.__mobileAgent.waitForStableDOM) {
-                    return window.__mobileAgent.waitForStableDOM($timeoutMs, $debounceMs);
+                const userField = document.querySelector('input[type="email"], input[type="text"][name*="user"], input[name*="login"], input[name*="email"], input[autocomplete*="username"], input[autocomplete*="email"]') || document.querySelector('input[type="text"]');
+                const passField = document.querySelector('input[type="password"]');
+                let userFilled = false;
+                let passFilled = false;
+
+                function triggerInputEvents(el, val) {
+                    if (!el) return;
+                    el.focus();
+                    const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+                    if (nativeSetter) {
+                        nativeSetter.call(el, val);
+                    } else {
+                        el.value = val;
+                    }
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
                 }
-                return Promise.resolve({ stable: true });
+
+                if (userField) {
+                    triggerInputEvents(userField, '$escapedUser');
+                    userFilled = true;
+                }
+                if (passField) {
+                    triggerInputEvents(passField, '$escapedPass');
+                    passFilled = true;
+                }
+
+                if ($autoSubmit) {
+                    const submitBtn = document.querySelector('button[type="submit"], input[type="submit"], [role="button"][id*="login"], [role="button"][id*="submit"]');
+                    if (submitBtn) {
+                        setTimeout(() => submitBtn.click(), 200);
+                    } else if (passField && passField.form) {
+                        setTimeout(() => passField.form.submit(), 200);
+                    }
+                }
+
+                return JSON.stringify({ success: true, userFilled: userFilled, passFilled: passFilled, userField: userField ? userField.name || userField.id : null });
             })();
         """.trimIndent()
 
-        browserEngine.evaluateJavascriptAsync(script)
-        delay(debounceMs.toLong() + 100)
+        val rawResult = browserEngine.evaluateJavascriptAsync(autofillJs)
+        delay(400)
 
         return McpCallToolResponse(
-            content = listOf(McpContent(type = "text", text = "DOM stabilized"))
+            content = listOf(
+                McpContent(
+                    type = "text",
+                    text = "Autofilled credentials for user '$usernameToFill' on domain '$currentDomain' into webpage form. Result: $rawResult"
+                )
+            )
         )
     }
 
     private suspend fun handleTakeScreenshot(request: McpCallToolRequest): McpCallToolResponse {
         val bitmap = browserEngine.captureScreenshotAsync()
         return if (bitmap != null) {
-            val outputStream = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
-            val base64 = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
-
+            val base64 = bitmapToBase64(bitmap)
             McpCallToolResponse(
                 content = listOf(
-                    McpContent(type = "image", data = base64, mimeType = "image/jpeg"),
-                    McpContent(type = "text", text = "Screenshot captured (${bitmap.width}x${bitmap.height}px)")
+                    McpContent(
+                        type = "image",
+                        data = base64,
+                        mimeType = "image/png"
+                    )
                 )
             )
         } else {
-            errorResponse("Failed to capture screen bitmap")
+            errorResponse("Failed to capture screenshot bitmap")
         }
     }
 
     private fun handleGoBack(request: McpCallToolRequest): McpCallToolResponse {
-        val canGoBack = browserEngine.goBack()
+        val success = browserEngine.goBack()
         return McpCallToolResponse(
-            content = listOf(McpContent(type = "text", text = if (canGoBack) "Navigated back" else "No previous page"))
+            content = listOf(McpContent(type = "text", text = if (success) "Navigated back in history" else "No history backward"))
         )
     }
 
     private fun handleFinishTask(request: McpCallToolRequest): McpCallToolResponse {
-        val answer = request.arguments["answer"]?.jsonPrimitive?.content
-            ?: request.arguments["summary"]?.jsonPrimitive?.content
-            ?: request.arguments["result"]?.jsonPrimitive?.content
-            ?: "Task complete."
+        val answer = request.arguments["answer"]?.jsonPrimitive?.content ?: "Completed task"
         return McpCallToolResponse(
             content = listOf(McpContent(type = "text", text = answer))
         )
@@ -403,5 +576,12 @@ class MobileChromeMcpServer(
             content = listOf(McpContent(type = "text", text = "Error: $message")),
             isError = true
         )
+    }
+
+    private fun bitmapToBase64(bitmap: Bitmap): String {
+        val outputStream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 90, outputStream)
+        val byteArray = outputStream.toByteArray()
+        return Base64.encodeToString(byteArray, Base64.NO_WRAP)
     }
 }

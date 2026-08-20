@@ -1,43 +1,33 @@
 /**
  * Mobile Chromium AI Agent Runtime
- * In-page JavaScript agent bundle providing DOM tree extraction, accessibility labeling,
- * visual badge overlays, synthetic touch/keyboard interactions, console execution, and SPA stability tracking.
+ * In-page JavaScript agent bundle providing non-destructive DOM tree extraction, accessibility labeling,
+ * synthetic touch/keyboard interactions, console execution, and SPA stability tracking.
  */
 (function () {
     if (window.__mobileAgent) {
-        console.log("[MobileAgent] Already initialized on", window.location.href);
         return;
     }
 
-    console.log("[MobileAgent] Initializing agent runtime on:", window.location.href);
+    console.log("[MobileAgent] Initializing pure non-destructive agent runtime on:", window.location.href);
 
-    const OVERLAY_CONTAINER_ID = '__mobile_agent_badge_container__';
     let elementIndexCounter = 0;
-    const elementMap = new Map(); // id -> HTMLElement
+    const elementMap = new Map(); // id -> HTMLElement (In-memory, zero DOM pollution)
 
     const INTERACTIVE_ROLES = new Set([
-        'button', 'link', 'checkbox', 'radio', 'tab', 'menuitem',
-        'combobox', 'searchbox', 'switch', 'textbox', 'option',
-        'menuitemcheckbox', 'menuitemradio', 'treeitem'
+        'button', 'link', 'checkbox', 'radio', 'combobox', 'textbox',
+        'searchbox', 'tab', 'menuitem', 'option', 'switch', 'slider'
     ]);
 
     const IGNORED_TAGS = new Set([
-        'SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG', 'PATH', 'META',
-        'LINK', 'HEAD', 'TITLE', 'TEMPLATE', 'BR', 'WBR'
+        'SCRIPT', 'STYLE', 'META', 'LINK', 'NOSCRIPT', 'IFRAME', 'SVG', 'PATH', 'HEAD'
     ]);
 
     /**
      * Check if an element is visible in the page / viewport
      */
     function isElementVisible(el, computedStyle) {
-        if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
-        
-        const style = computedStyle || window.getComputedStyle(el);
-        if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) < 0.05) {
-            return false;
-        }
-
-        if (el.hasAttribute('aria-hidden') && el.getAttribute('aria-hidden') === 'true') {
+        if (!el || !computedStyle) return false;
+        if (computedStyle.display === 'none' || computedStyle.visibility === 'hidden' || parseFloat(computedStyle.opacity) === 0) {
             return false;
         }
 
@@ -53,32 +43,25 @@
      * Determine if an element is interactive for a user on mobile
      */
     function isInteractive(el, computedStyle) {
-        const tag = el.tagName.toUpperCase();
-
-        if (['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'DETAILS', 'SUMMARY'].includes(tag)) {
+        const tagName = el.tagName.toUpperCase();
+        if (['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(tagName)) {
             return true;
         }
 
-        const role = (el.getAttribute('role') || '').toLowerCase();
-        if (INTERACTIVE_ROLES.has(role)) {
+        if (el.hasAttribute('onclick') || el.hasAttribute('tabindex') || el.isContentEditable) {
             return true;
         }
 
-        if (el.hasAttribute('onclick') || el.hasAttribute('data-action') || el.hasAttribute('ng-click') || el.hasAttribute('v-on:click')) {
+        const role = el.getAttribute('role');
+        if (role && INTERACTIVE_ROLES.has(role.toLowerCase())) {
             return true;
         }
 
-        const tabIndex = el.getAttribute('tabindex');
-        if (tabIndex !== null && parseInt(tabIndex, 10) >= 0) {
+        if (computedStyle && (computedStyle.cursor === 'pointer' || computedStyle.touchAction === 'manipulation')) {
             return true;
         }
 
-        if (el.isContentEditable) {
-            return true;
-        }
-
-        const style = computedStyle || window.getComputedStyle(el);
-        if (style.cursor === 'pointer') {
+        if (el.hasAttribute('data-action') || el.hasAttribute('data-clickable') || el.hasAttribute('aria-expanded')) {
             return true;
         }
 
@@ -89,72 +72,46 @@
      * Compute accessible text name for an element
      */
     function getAccessibleName(el) {
-        // 1. aria-label
         const ariaLabel = el.getAttribute('aria-label');
         if (ariaLabel && ariaLabel.trim()) return ariaLabel.trim();
 
-        // 2. aria-labelledby
         const ariaLabelledBy = el.getAttribute('aria-labelledby');
         if (ariaLabelledBy) {
             const labelledEl = document.getElementById(ariaLabelledBy);
-            if (labelledEl && labelledEl.textContent.trim()) {
-                return labelledEl.textContent.trim();
+            if (labelledEl && labelledEl.innerText && labelledEl.innerText.trim()) {
+                return labelledEl.innerText.trim();
             }
         }
 
-        // 3. title or placeholder
-        const title = el.getAttribute('title');
-        if (title && title.trim()) return title.trim();
+        const alt = el.getAttribute('alt');
+        if (alt && alt.trim()) return alt.trim();
 
         const placeholder = el.getAttribute('placeholder');
         if (placeholder && placeholder.trim()) return placeholder.trim();
 
-        // 4. alt (images)
-        const alt = el.getAttribute('alt');
-        if (alt && alt.trim()) return alt.trim();
+        const title = el.getAttribute('title');
+        if (title && title.trim()) return title.trim();
 
-        // 5. Text content for buttons, links, labels
-        if (['BUTTON', 'A', 'LABEL', 'SUMMARY', 'SPAN', 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(el.tagName)) {
-            const text = el.innerText || el.textContent || '';
-            if (text.trim()) {
-                return text.trim().replace(/\s+/g, ' ').slice(0, 120);
+        // Visible text content
+        let text = (el.innerText || el.textContent || '').trim();
+        if (text) {
+            if (text.length > 100) {
+                text = text.substring(0, 97) + '...';
             }
+            return text.replace(/\s+/g, ' ');
         }
 
-        // 6. Input value or select text
-        if (el.tagName === 'INPUT' && (el.type === 'submit' || el.type === 'button' || el.type === 'reset')) {
-            return el.value || el.placeholder || '';
+        const value = el.value;
+        if (value && typeof value === 'string' && value.trim()) {
+            return value.trim();
         }
 
         return '';
     }
 
-    /**
-     * Get or create container for visual badges
-     */
-    function getOrCreateOverlayContainer() {
-        let container = document.getElementById(OVERLAY_CONTAINER_ID);
-        if (!container) {
-            container = document.createElement('div');
-            container.id = OVERLAY_CONTAINER_ID;
-            container.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100vw;
-                height: 100vh;
-                pointer-events: none;
-                z-index: 2147483647;
-                overflow: hidden;
-            `;
-            document.documentElement.appendChild(container);
-        }
-        return container;
-    }
-
     const MobileAgent = {
         /**
-         * Extract semantic DOM snapshot and interactive element registry
+         * Extract semantic DOM snapshot and interactive element registry without mutating DOM nodes
          */
         getDOMSnapshot: function (options) {
             options = options || {};
@@ -164,15 +121,14 @@
             elementMap.clear();
 
             const snapshotElements = [];
-            const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
-            const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+            const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 360;
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 640;
 
             const allElements = document.querySelectorAll('*');
 
             for (let i = 0; i < allElements.length; i++) {
                 const el = allElements[i];
                 if (IGNORED_TAGS.has(el.tagName)) continue;
-                if (el.id === OVERLAY_CONTAINER_ID || el.closest('#' + OVERLAY_CONTAINER_ID)) continue;
 
                 const style = window.getComputedStyle(el);
                 if (!isElementVisible(el, style)) continue;
@@ -193,7 +149,7 @@
 
                 elementIndexCounter++;
                 const id = elementIndexCounter;
-                el.setAttribute('data-agent-id', id.toString());
+                // Pure in-memory reference: DO NOT mutate el.setAttribute which crashes Virtual DOM roots (React/Vue/Next)
                 elementMap.set(id, el);
 
                 const accessibleName = getAccessibleName(el);
@@ -225,7 +181,7 @@
                 });
             }
 
-            console.log(`[MobileAgent] Extracted DOM snapshot with ${snapshotElements.length} elements`);
+            console.log(`[MobileAgent] Extracted clean DOM snapshot with ${snapshotElements.length} elements`);
 
             // Create compressed markdown-like text representation for LLM context
             let textRepresentation = `Page Title: "${document.title}"\nURL: ${window.location.href}\nInteractive & Visible Elements:\n`;
@@ -256,47 +212,12 @@
             };
         },
 
-        /**
-         * Render visual badge markers over interactive elements
-         */
         showElementBadges: function () {
-            const container = getOrCreateOverlayContainer();
-            container.innerHTML = '';
-
-            elementMap.forEach((el, id) => {
-                const rect = el.getBoundingClientRect();
-                if (rect.width <= 0 || rect.height <= 0) return;
-
-                const badge = document.createElement('div');
-                badge.innerText = id.toString();
-                badge.style.cssText = `
-                    position: absolute;
-                    top: ${Math.max(0, rect.top)}px;
-                    left: ${Math.max(0, rect.left)}px;
-                    background: #2563EB;
-                    color: #FFFFFF;
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                    font-size: 11px;
-                    font-weight: 700;
-                    padding: 1px 4px;
-                    border-radius: 4px;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-                    pointer-events: none;
-                    line-height: 14px;
-                    z-index: 2147483647;
-                `;
-                container.appendChild(badge);
-            });
+            // No-op in-page DOM injection: Compose renders highlights natively to prevent React/Vue hydration crashes
         },
 
-        /**
-         * Clear all visual badge markers
-         */
         clearElementBadges: function () {
-            const container = document.getElementById(OVERLAY_CONTAINER_ID);
-            if (container) {
-                container.innerHTML = '';
-            }
+            // No-op
         },
 
         /**
@@ -310,22 +231,19 @@
             console.log(`[MobileAgent] Executing action '${action}' on ID #${id}`, params);
 
             if (id !== undefined && id !== null) {
-                targetEl = elementMap.get(parseInt(id, 10)) || document.querySelector(`[data-agent-id="${id}"]`);
+                targetEl = elementMap.get(parseInt(id, 10));
             } else if (params.selector) {
                 targetEl = document.querySelector(params.selector);
             }
 
             if (!targetEl) {
-                console.error(`[MobileAgent] Target element #${id} not found in DOM!`);
+                console.error(`[MobileAgent] Target element #${id} not found in in-memory map!`);
                 return { success: false, error: `Element with id ${id} not found` };
             }
 
             switch (action) {
                 case 'click': {
-                    // Resolve closest clickable ancestor
                     const clickableTarget = targetEl.closest('a, button, input, select, textarea, [role="button"], [role="link"], [role="checkbox"], [role="tab"], [onclick], [tabindex]') || targetEl;
-
-                    console.log("[MobileAgent] Resolved clickable target:", clickableTarget.tagName, clickableTarget.className, clickableTarget);
 
                     try {
                         clickableTarget.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
@@ -342,7 +260,7 @@
                         }
                     } catch (e) {}
 
-                    // 2. Safe Touch Events
+                    // 2. Touch Events
                     try {
                         if (typeof Touch !== 'undefined' && typeof TouchEvent !== 'undefined') {
                             const touchObj = new Touch({
@@ -391,15 +309,7 @@
                         }
                     } catch (e) {}
 
-                    // 5. Link Navigation Fallback for standard <a> tags
-                    if (clickableTarget.tagName === 'A' && clickableTarget.href && !clickableTarget.href.startsWith('javascript:')) {
-                        console.log("[MobileAgent] Triggering link navigation to:", clickableTarget.href);
-                        setTimeout(() => {
-                            window.location.href = clickableTarget.href;
-                        }, 50);
-                    }
-
-                    // 6. Form submit fallback for submit buttons
+                    // 5. Form submit fallback for submit buttons
                     if (clickableTarget.tagName === 'BUTTON' && clickableTarget.type === 'submit' && clickableTarget.form) {
                         try {
                             if (typeof clickableTarget.form.requestSubmit === 'function') {
@@ -416,8 +326,6 @@
 
                 case 'type': {
                     const inputEl = targetEl.closest('input, textarea, [contenteditable="true"]') || targetEl;
-
-                    console.log("[MobileAgent] Resolved input target:", inputEl.tagName, inputEl);
 
                     try {
                         inputEl.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
@@ -454,14 +362,12 @@
                     }
 
                     if (params.pressEnter) {
-                        console.log("[MobileAgent] Pressing Enter and submitting form");
                         try {
                             inputEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
                             inputEl.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
                             inputEl.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
                         } catch (e) {}
 
-                        // Submit parent form if present
                         if (inputEl.form) {
                             try {
                                 if (typeof inputEl.form.requestSubmit === 'function') {
@@ -489,106 +395,72 @@
                     else if (direction === 'top') dy = -window.scrollY;
                     else if (direction === 'bottom') dy = document.documentElement.scrollHeight - window.scrollY;
 
-                    window.scrollBy({ top: dy, left: dx, behavior: 'smooth' });
-
-                    console.log(`[MobileAgent] Scrolled ${direction} by dy=${dy}`);
-                    return { success: true, action: 'scroll', direction: direction, delta: { dx, dy } };
+                    window.scrollBy({ left: dx, top: dy, behavior: 'smooth' });
+                    return { success: true, action: 'scroll', direction: direction, amount: amount };
                 }
 
                 case 'select': {
                     const selectEl = targetEl.closest('select') || targetEl;
-                    if (selectEl.tagName !== 'SELECT') {
-                        return { success: false, error: `Element with id ${id} is not a <select>` };
+                    if (selectEl.tagName === 'SELECT') {
+                        const val = params.value;
+                        if (val !== undefined) {
+                            selectEl.value = val;
+                            selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                            return { success: true, elementId: id, action: 'select', value: val };
+                        }
                     }
-                    const value = params.value;
-                    selectEl.value = value;
-                    selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-                    console.log(`[MobileAgent] Selected option value "${value}"`);
-                    return { success: true, action: 'select', value: value };
+                    return { success: false, error: 'Element is not a <select>' };
                 }
 
                 default:
-                    return { success: false, error: `Unsupported interaction action: ${action}` };
+                    return { success: false, error: `Unknown interaction action '${action}'` };
             }
         },
 
         /**
-         * Execute arbitrary JavaScript in page context
+         * Evaluate JavaScript code securely in window context
          */
         executeConsole: function (code) {
             console.log("[MobileAgent] Evaluating console code:", code);
             try {
                 const evalResult = window.eval(code);
-                let serializedResult;
-
-                if (evalResult === undefined) {
-                    serializedResult = "undefined";
-                } else if (evalResult === null) {
-                    serializedResult = "null";
-                } else if (typeof evalResult === 'object') {
+                if (evalResult === undefined) return "undefined";
+                if (evalResult === null) return "null";
+                if (typeof evalResult === 'object') {
                     try {
-                        serializedResult = JSON.stringify(evalResult);
+                        return JSON.stringify(evalResult);
                     } catch (e) {
-                        serializedResult = String(evalResult);
+                        return String(evalResult);
                     }
-                } else {
-                    serializedResult = String(evalResult);
                 }
-
-                console.log("[MobileAgent] Console evaluation result:", serializedResult);
-                return {
-                    success: true,
-                    result: serializedResult
-                };
+                return String(evalResult);
             } catch (err) {
-                console.error("[MobileAgent] Console evaluation error:", err);
-                return {
-                    success: false,
-                    error: err && err.message ? err.message : String(err),
-                    stack: err && err.stack ? err.stack : null
-                };
+                return `Error: ${err.name} - ${err.message}`;
             }
         },
 
         /**
-         * Wait for DOM mutations and SPA network requests to settle
+         * Wait for DOM mutations or network quiet period to settle
          */
         waitForStableDOM: function (timeoutMs, debounceMs) {
             timeoutMs = timeoutMs || 2500;
             debounceMs = debounceMs || 300;
 
             return new Promise((resolve) => {
-                let debounceTimer = null;
-                let observer = null;
-                let timedOut = false;
+                let timer = null;
+                let isResolved = false;
 
-                const finish = () => {
-                    if (observer) {
+                function onStable() {
+                    if (!isResolved) {
+                        isResolved = true;
                         observer.disconnect();
-                        observer = null;
+                        resolve('stable');
                     }
-                    if (debounceTimer) {
-                        clearTimeout(debounceTimer);
-                        debounceTimer = null;
-                    }
-                    resolve({ stable: true, timedOut: timedOut });
-                };
+                }
 
-                const globalTimeout = setTimeout(() => {
-                    timedOut = true;
-                    finish();
-                }, timeoutMs);
-
-                const resetDebounce = () => {
-                    if (debounceTimer) clearTimeout(debounceTimer);
-                    debounceTimer = setTimeout(() => {
-                        clearTimeout(globalTimeout);
-                        finish();
-                    }, debounceMs);
-                };
-
-                observer = new MutationObserver((mutations) => {
-                    resetDebounce();
+                const observer = new MutationObserver(() => {
+                    clearTimeout(timer);
+                    timer = setTimeout(onStable, debounceMs);
                 });
 
                 observer.observe(document.body || document.documentElement, {
@@ -598,7 +470,10 @@
                     characterData: true
                 });
 
-                resetDebounce();
+                timer = setTimeout(onStable, debounceMs);
+                setTimeout(() => {
+                    onStable();
+                }, timeoutMs);
             });
         }
     };

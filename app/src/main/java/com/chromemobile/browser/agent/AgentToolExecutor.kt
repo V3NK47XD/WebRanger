@@ -3,8 +3,12 @@ package com.chromemobile.browser.agent
 import android.graphics.Bitmap
 import android.util.Base64
 import com.chromemobile.browser.engine.BrowserEngine
+import com.chromemobile.browser.password.PasswordManager
+import com.chromemobile.browser.password.SavedCredential
+import com.chromemobile.browser.preferences.BrowserPreferences
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
@@ -13,7 +17,9 @@ import java.io.ByteArrayOutputStream
 
 class AgentToolExecutor(
     private val browserEngine: BrowserEngine,
-    private val json: Json = Json { ignoreUnknownKeys = true }
+    private val passwordManager: PasswordManager? = null,
+    private val browserPreferences: BrowserPreferences? = null,
+    private val json: Json = Json { ignoreUnknownKeys = true; prettyPrint = true }
 ) {
 
     private var latestSnapshot: DomSnapshotResponse? = null
@@ -29,6 +35,9 @@ class AgentToolExecutor(
                 "scroll_page" -> executeScrollPage(toolCall)
                 "execute_console" -> executeConsole(toolCall)
                 "wait_for_condition" -> executeWaitForCondition(toolCall)
+                "get_saved_credentials" -> executeGetSavedCredentials(toolCall)
+                "save_credential" -> executeSaveCredential(toolCall)
+                "autofill_login" -> executeAutofillLogin(toolCall)
                 "go_back" -> executeGoBack(toolCall)
                 "finish_task" -> executeFinishTask(toolCall)
                 else -> AgentToolResult(
@@ -55,7 +64,6 @@ class AgentToolExecutor(
             ?: return errorResult(call, "Missing required parameter 'url'")
 
         browserEngine.loadUrl(url)
-        // Give the page initial time to start loading
         delay(1200)
 
         return AgentToolResult(
@@ -67,51 +75,46 @@ class AgentToolExecutor(
     }
 
     suspend fun fetchDomSnapshot(viewportOnly: Boolean = true): DomSnapshotResponse? {
-        val script = """
-            (function() {
-                if (window.__mobileAgent && window.__mobileAgent.getDOMSnapshot) {
-                    return JSON.stringify(window.__mobileAgent.getDOMSnapshot({ viewportOnly: $viewportOnly }));
-                }
-                return null;
-            })();
-        """.trimIndent()
+        val script = "window.__mobileAgent ? JSON.stringify(window.__mobileAgent.getDOMSnapshot({ viewportOnly: $viewportOnly })) : null;"
+        val rawJson = browserEngine.evaluateJavascriptAsync(script)
 
-        val rawResult = browserEngine.evaluateJavascriptAsync(script)
-        if (rawResult == null || rawResult == "null" || rawResult == "undefined") {
+        if (rawJson.isNullOrBlank() || rawJson == "null") {
             return null
         }
 
-        // Result from evaluateJavascript is JSON-encoded string
-        val cleanedJson = if (rawResult.startsWith("\"") && rawResult.endsWith("\"")) {
-            json.decodeFromString<String>(rawResult)
+        val cleanJson = if (rawJson.startsWith("\"") && rawJson.endsWith("\"")) {
+            try {
+                json.decodeFromString<String>(rawJson)
+            } catch (e: Exception) {
+                rawJson
+            }
         } else {
-            rawResult
+            rawJson
         }
 
-        val parsed = json.decodeFromString<DomSnapshotResponse>(cleanedJson)
-        latestSnapshot = parsed
-        return parsed
+        return try {
+            val response = json.decodeFromString<DomSnapshotResponse>(cleanJson)
+            latestSnapshot = response
+            response
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private suspend fun executeGetDomSnapshot(call: AgentToolCall): AgentToolResult {
-        val viewportOnly = call.arguments["viewport_only"]?.jsonPrimitive?.booleanOrNull ?: true
-        val snapshot = fetchDomSnapshot(viewportOnly)
+        val viewportOnly = call.arguments["viewport_only"]?.jsonPrimitive?.booleanOrNull ?: false
+        val snapshot = fetchDomSnapshot(viewportOnly = viewportOnly)
 
         return if (snapshot != null) {
+            val sanitizedFormatted = SecurityGuard.sanitizeSnapshotText(snapshot.treeText)
             AgentToolResult(
                 toolCallId = call.toolCallId,
                 name = call.name,
                 success = true,
-                output = snapshot.treeText
+                output = sanitizedFormatted
             )
         } else {
-            AgentToolResult(
-                toolCallId = call.toolCallId,
-                name = call.name,
-                success = false,
-                output = "Failed to extract DOM snapshot: agent runtime not ready",
-                error = "Runtime not ready"
-            )
+            errorResult(call, "Failed to capture DOM snapshot. The page might still be loading.")
         }
     }
 
@@ -123,7 +126,7 @@ class AgentToolExecutor(
                 toolCallId = call.toolCallId,
                 name = call.name,
                 success = true,
-                output = "Screenshot captured successfully (${bitmap.width}x${bitmap.height}px, base64 length: ${base64.length})"
+                output = "data:image/png;base64,$base64"
             )
         } else {
             errorResult(call, "Failed to capture screen bitmap")
@@ -132,154 +135,314 @@ class AgentToolExecutor(
 
     private suspend fun executeClickElement(call: AgentToolCall): AgentToolResult {
         val elementId = call.arguments["element_id"]?.jsonPrimitive?.intOrNull
-            ?: return errorResult(call, "Missing required parameter 'element_id'")
+            ?: return errorResult(call, "Missing required numeric parameter 'element_id'")
 
-        val script = """
-            (function() {
-                if (window.__mobileAgent && window.__mobileAgent.interact) {
-                    return JSON.stringify(window.__mobileAgent.interact('click', { id: $elementId }));
-                }
-                return JSON.stringify({ success: false, error: 'Runtime not initialized' });
-            })();
-        """.trimIndent()
+        val element = latestSnapshot?.elements?.firstOrNull { it.id == elementId }
+        val safetyCheck = SecurityGuard.checkElementInteractionSafety(
+            action = "click",
+            element = element,
+            typedText = null,
+            allowPasswordAccess = browserPreferences?.sharePasswordsWithLlm ?: false
+        )
+        if (!safetyCheck.isSafe) {
+            return errorResult(call, "SecurityGuard blocked click: ${safetyCheck.promptMessage}")
+        }
 
+        val script = "window.__mobileAgent ? JSON.stringify(window.__mobileAgent.interact('click', { id: $elementId })) : null;"
         val rawResult = browserEngine.evaluateJavascriptAsync(script)
-        // Wait a short moment for DOM update or navigation
-        delay(400)
 
+        delay(300)
         return AgentToolResult(
             toolCallId = call.toolCallId,
             name = call.name,
             success = true,
-            output = "Tapped element #$elementId. Interaction result: $rawResult",
+            output = "Successfully tapped element #$elementId (${element?.name ?: element?.tag ?: ""})",
             highlightedElementId = elementId
         )
     }
 
     private suspend fun executeTypeText(call: AgentToolCall): AgentToolResult {
         val elementId = call.arguments["element_id"]?.jsonPrimitive?.intOrNull
-            ?: return errorResult(call, "Missing required parameter 'element_id'")
+            ?: return errorResult(call, "Missing required numeric parameter 'element_id'")
         val text = call.arguments["text"]?.jsonPrimitive?.content
-            ?: return errorResult(call, "Missing required parameter 'text'")
-        val clearFirst = call.arguments["clear_first"]?.jsonPrimitive?.booleanOrNull ?: false
+            ?: return errorResult(call, "Missing required string parameter 'text'")
+        val clearFirst = call.arguments["clear_first"]?.jsonPrimitive?.booleanOrNull ?: true
         val pressEnter = call.arguments["press_enter"]?.jsonPrimitive?.booleanOrNull ?: false
 
-        val escapedText = text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
+        val element = latestSnapshot?.elements?.firstOrNull { it.id == elementId }
+        val safetyCheck = SecurityGuard.checkElementInteractionSafety(
+            action = "type",
+            element = element,
+            typedText = text,
+            allowPasswordAccess = browserPreferences?.sharePasswordsWithLlm ?: false
+        )
+        if (!safetyCheck.isSafe && !safetyCheck.requiresUserConfirmation) {
+            return errorResult(call, "SecurityGuard blocked typing into sensitive field")
+        }
 
-        val script = """
-            (function() {
-                if (window.__mobileAgent && window.__mobileAgent.interact) {
-                    return JSON.stringify(window.__mobileAgent.interact('type', {
-                        id: $elementId,
-                        text: "$escapedText",
-                        clearFirst: $clearFirst,
-                        pressEnter: $pressEnter
-                    }));
-                }
-                return JSON.stringify({ success: false, error: 'Runtime not initialized' });
-            })();
-        """.trimIndent()
-
+        val escapedText = text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+        val script = "window.__mobileAgent ? JSON.stringify(window.__mobileAgent.interact('type', { id: $elementId, text: '$escapedText', clearFirst: $clearFirst, pressEnter: $pressEnter })) : null;"
         val rawResult = browserEngine.evaluateJavascriptAsync(script)
-        delay(300)
 
+        delay(300)
         return AgentToolResult(
             toolCallId = call.toolCallId,
             name = call.name,
             success = true,
-            output = "Typed text into element #$elementId. Result: $rawResult",
+            output = "Successfully typed into element #$elementId",
             highlightedElementId = elementId
         )
     }
 
     private suspend fun executeScrollPage(call: AgentToolCall): AgentToolResult {
         val direction = call.arguments["direction"]?.jsonPrimitive?.content ?: "down"
-        val amount = call.arguments["amount"]?.jsonPrimitive?.intOrNull ?: 600
+        val amount = call.arguments["amount"]?.jsonPrimitive?.intOrNull ?: 400
 
-        val script = """
-            (function() {
-                if (window.__mobileAgent && window.__mobileAgent.interact) {
-                    return JSON.stringify(window.__mobileAgent.interact('scroll', {
-                        direction: '$direction',
-                        amount: $amount
-                    }));
-                }
-                return JSON.stringify({ success: false, error: 'Runtime not initialized' });
-            })();
-        """.trimIndent()
+        val scrollScript = when (direction.lowercase()) {
+            "top" -> "window.scrollTo({ top: 0, behavior: 'smooth' });"
+            "bottom" -> "window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });"
+            "up" -> "window.scrollBy({ top: -$amount, behavior: 'smooth' });"
+            else -> "window.scrollBy({ top: $amount, behavior: 'smooth' });"
+        }
 
-        val rawResult = browserEngine.evaluateJavascriptAsync(script)
+        browserEngine.evaluateJavascriptAsync(scrollScript)
         delay(400)
 
         return AgentToolResult(
             toolCallId = call.toolCallId,
             name = call.name,
             success = true,
-            output = "Scrolled page $direction by $amount px. Result: $rawResult"
+            output = "Scrolled page $direction ($amount px)"
         )
     }
 
     private suspend fun executeConsole(call: AgentToolCall): AgentToolResult {
         val jsCode = call.arguments["js_code"]?.jsonPrimitive?.content
-            ?: return errorResult(call, "Missing required parameter 'js_code'")
+            ?: return errorResult(call, "Missing parameter 'js_code'")
 
-        val escapedCode = jsCode.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
-
-        val script = """
-            (function() {
-                if (window.__mobileAgent && window.__mobileAgent.executeConsole) {
-                    return JSON.stringify(window.__mobileAgent.executeConsole("$escapedCode"));
-                }
-                return JSON.stringify({ success: false, error: 'Runtime not initialized' });
-            })();
-        """.trimIndent()
-
-        val rawResult = browserEngine.evaluateJavascriptAsync(script)
-
+        val result = browserEngine.evaluateJavascriptAsync(jsCode)
         return AgentToolResult(
             toolCallId = call.toolCallId,
             name = call.name,
             success = true,
-            output = "Console execution output: $rawResult"
+            output = result ?: "undefined"
         )
     }
 
     private suspend fun executeWaitForCondition(call: AgentToolCall): AgentToolResult {
-        val timeoutMs = call.arguments["timeout_ms"]?.jsonPrimitive?.intOrNull ?: 2500
+        val timeoutMs = call.arguments["timeout_ms"]?.jsonPrimitive?.intOrNull ?: 3000
         val debounceMs = call.arguments["debounce_ms"]?.jsonPrimitive?.intOrNull ?: 300
 
-        val script = """
-            (function() {
-                if (window.__mobileAgent && window.__mobileAgent.waitForStableDOM) {
-                    return window.__mobileAgent.waitForStableDOM($timeoutMs, $debounceMs);
-                }
-                return Promise.resolve({ stable: true });
-            })();
-        """.trimIndent()
-
-        browserEngine.evaluateJavascriptAsync(script)
-        delay(debounceMs.toLong() + 100)
+        val script = "window.__mobileAgent ? window.__mobileAgent.waitForStableDOM($timeoutMs, $debounceMs) : null;"
+        val result = withTimeoutOrNull(timeoutMs.toLong() + 500) {
+            browserEngine.evaluateJavascriptAsync(script)
+        }
 
         return AgentToolResult(
             toolCallId = call.toolCallId,
             name = call.name,
             success = true,
-            output = "DOM stabilized or timeout reached (${timeoutMs}ms)"
+            output = "DOM stabilized after dynamic mutation: ${result ?: "ok"}"
+        )
+    }
+
+    private fun executeGetSavedCredentials(call: AgentToolCall): AgentToolResult {
+        if (browserPreferences != null && !browserPreferences.sharePasswordsWithLlm) {
+            return AgentToolResult(
+                toolCallId = call.toolCallId,
+                name = call.name,
+                success = false,
+                output = "Password sharing with AI / MCP tools is currently disabled in Chrome Settings. The user can toggle this on under Settings -> AI Agent & MCP -> 'Allow AI & MCP tools to access saved passwords'.",
+                error = "PASSWORD_SHARING_DISABLED"
+            )
+        }
+
+        val pm = passwordManager
+            ?: return errorResult(call, "PasswordManager is not initialized")
+
+        val targetDomain = call.arguments["domain"]?.jsonPrimitive?.content
+            ?: call.arguments["url"]?.jsonPrimitive?.content
+            ?: SavedCredential.normalizeDomain(browserEngine.state.value.currentUrl)
+
+        val creds = if (targetDomain.isNotBlank()) {
+            pm.getCredentialsForDomain(targetDomain)
+        } else {
+            pm.getAllCredentials()
+        }
+
+        if (creds.isEmpty()) {
+            return AgentToolResult(
+                toolCallId = call.toolCallId,
+                name = call.name,
+                success = true,
+                output = "No saved credentials found for domain: '$targetDomain'. (Available saved domains: ${pm.getAllCredentials().map { it.domain }.distinct()})"
+            )
+        }
+
+        val serialized = json.encodeToString(creds.map {
+            mapOf(
+                "domain" to it.domain,
+                "username" to it.username,
+                "password" to it.password,
+                "title" to it.title,
+                "originUrl" to it.originUrl
+            )
+        })
+
+        return AgentToolResult(
+            toolCallId = call.toolCallId,
+            name = call.name,
+            success = true,
+            output = "Found ${creds.size} saved credential(s) for '$targetDomain':\n$serialized"
+        )
+    }
+
+    private fun executeSaveCredential(call: AgentToolCall): AgentToolResult {
+        if (browserPreferences != null && !browserPreferences.sharePasswordsWithLlm) {
+            return AgentToolResult(
+                toolCallId = call.toolCallId,
+                name = call.name,
+                success = false,
+                output = "Password access is disabled in Settings. Enable 'Allow AI & MCP tools to access saved passwords' to use credential tools.",
+                error = "PASSWORD_SHARING_DISABLED"
+            )
+        }
+
+        val pm = passwordManager
+            ?: return errorResult(call, "PasswordManager is not initialized")
+
+        val domain = call.arguments["domain"]?.jsonPrimitive?.content
+            ?: return errorResult(call, "Missing required parameter 'domain'")
+        val username = call.arguments["username"]?.jsonPrimitive?.content
+            ?: return errorResult(call, "Missing required parameter 'username'")
+        val password = call.arguments["password"]?.jsonPrimitive?.content
+            ?: return errorResult(call, "Missing required parameter 'password'")
+        val title = call.arguments["title"]?.jsonPrimitive?.content ?: domain
+        val url = call.arguments["url"]?.jsonPrimitive?.content ?: browserEngine.state.value.currentUrl
+
+        val saved = pm.saveCredential(
+            SavedCredential(
+                domain = domain,
+                originUrl = url,
+                username = username,
+                password = password,
+                title = title
+            )
+        )
+
+        return AgentToolResult(
+            toolCallId = call.toolCallId,
+            name = call.name,
+            success = true,
+            output = "Successfully saved credential for user '${saved.username}' on domain '${saved.domain}'."
+        )
+    }
+
+    private suspend fun executeAutofillLogin(call: AgentToolCall): AgentToolResult {
+        if (browserPreferences != null && !browserPreferences.sharePasswordsWithLlm) {
+            return AgentToolResult(
+                toolCallId = call.toolCallId,
+                name = call.name,
+                success = false,
+                output = "Password sharing with AI / MCP tools is disabled in Settings. Please enable 'Allow AI & MCP tools to access saved passwords'.",
+                error = "PASSWORD_SHARING_DISABLED"
+            )
+        }
+
+        val pm = passwordManager
+            ?: return errorResult(call, "PasswordManager is not initialized")
+
+        val currentUrl = browserEngine.state.value.currentUrl
+        val currentDomain = SavedCredential.normalizeDomain(currentUrl)
+        val savedCreds = pm.getCredentialsForDomain(currentDomain)
+
+        val requestedUsername = call.arguments["username"]?.jsonPrimitive?.content
+        val requestedPassword = call.arguments["password"]?.jsonPrimitive?.content
+        val autoSubmit = call.arguments["auto_submit"]?.jsonPrimitive?.booleanOrNull ?: false
+
+        val selectedCred = if (!requestedUsername.isNullOrBlank()) {
+            savedCreds.firstOrNull { it.username.equals(requestedUsername, ignoreCase = true) }
+        } else {
+            savedCreds.firstOrNull()
+        }
+
+        val usernameToFill = requestedUsername ?: selectedCred?.username
+        val passwordToFill = requestedPassword ?: selectedCred?.password
+
+        if (usernameToFill.isNullOrBlank() || passwordToFill.isNullOrBlank()) {
+            return errorResult(call, "No matching saved credentials found for domain '$currentDomain'. Please save or provide username and password.")
+        }
+
+        selectedCred?.let { pm.markUsed(it.id) }
+
+        val escapedUser = usernameToFill.replace("\\", "\\\\").replace("'", "\\'")
+        val escapedPass = passwordToFill.replace("\\", "\\\\").replace("'", "\\'")
+
+        val autofillJs = """
+            (function() {
+                const userField = document.querySelector('input[type="email"], input[type="text"][name*="user"], input[name*="login"], input[name*="email"], input[autocomplete*="username"], input[autocomplete*="email"]') || document.querySelector('input[type="text"]');
+                const passField = document.querySelector('input[type="password"]');
+                let userFilled = false;
+                let passFilled = false;
+
+                function triggerInputEvents(el, val) {
+                    if (!el) return;
+                    el.focus();
+                    const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+                    if (nativeSetter) {
+                        nativeSetter.call(el, val);
+                    } else {
+                        el.value = val;
+                    }
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+
+                if (userField) {
+                    triggerInputEvents(userField, '$escapedUser');
+                    userFilled = true;
+                }
+                if (passField) {
+                    triggerInputEvents(passField, '$escapedPass');
+                    passFilled = true;
+                }
+
+                if ($autoSubmit) {
+                    const submitBtn = document.querySelector('button[type="submit"], input[type="submit"], [role="button"][id*="login"], [role="button"][id*="submit"]');
+                    if (submitBtn) {
+                        setTimeout(() => submitBtn.click(), 200);
+                    } else if (passField && passField.form) {
+                        setTimeout(() => passField.form.submit(), 200);
+                    }
+                }
+
+                return JSON.stringify({ success: true, userFilled: userFilled, passFilled: passFilled, userField: userField ? userField.name || userField.id : null });
+            })();
+        """.trimIndent()
+
+        val rawResult = browserEngine.evaluateJavascriptAsync(autofillJs)
+        delay(400)
+
+        return AgentToolResult(
+            toolCallId = call.toolCallId,
+            name = call.name,
+            success = true,
+            output = "Successfully autofilled credentials for user '$usernameToFill' on domain '$currentDomain' into webpage login form. Result: $rawResult"
         )
     }
 
     private fun executeGoBack(call: AgentToolCall): AgentToolResult {
-        val canBack = browserEngine.goBack()
+        val wentBack = browserEngine.goBack()
         return AgentToolResult(
             toolCallId = call.toolCallId,
             name = call.name,
-            success = canBack,
-            output = if (canBack) "Navigated back in history" else "No previous history page"
+            success = wentBack,
+            output = if (wentBack) "Navigated back in history" else "No previous page to go back to"
         )
     }
 
     private fun executeFinishTask(call: AgentToolCall): AgentToolResult {
-        val answer = call.arguments["answer"]?.jsonPrimitive?.content ?: "Task finished."
+        val answer = call.arguments["answer"]?.jsonPrimitive?.content ?: "Task finished"
         return AgentToolResult(
             toolCallId = call.toolCallId,
             name = call.name,
@@ -293,14 +456,14 @@ class AgentToolExecutor(
             toolCallId = call.toolCallId,
             name = call.name,
             success = false,
-            output = "Error: $error",
+            output = error,
             error = error
         )
     }
 
     private fun bitmapToBase64(bitmap: Bitmap): String {
         val outputStream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+        bitmap.compress(Bitmap.CompressFormat.PNG, 90, outputStream)
         val byteArray = outputStream.toByteArray()
         return Base64.encodeToString(byteArray, Base64.NO_WRAP)
     }

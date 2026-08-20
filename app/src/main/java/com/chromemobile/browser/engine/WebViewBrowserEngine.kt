@@ -3,13 +3,20 @@ package com.chromemobile.browser.engine
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.MotionEvent
+import android.view.View
+import android.webkit.CookieManager
 import android.webkit.WebSettings
+import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.chromemobile.browser.agent.SearchEngine
+import com.chromemobile.browser.preferences.BrowserPreferences
+import com.chromemobile.browser.preferences.CookiePolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,7 +28,8 @@ import kotlin.coroutines.suspendCoroutine
 @SuppressLint("SetJavaScriptEnabled")
 class WebViewBrowserEngine(
     private val context: Context,
-    val webView: WebView = WebView(context)
+    val webView: WebView = WebView(context),
+    private val browserPreferences: BrowserPreferences = BrowserPreferences(context)
 ) : BrowserEngine {
 
     private val _state = MutableStateFlow(BrowserState())
@@ -30,12 +38,33 @@ class WebViewBrowserEngine(
     private val _consoleLogs = MutableStateFlow<List<ConsoleMessageEntry>>(emptyList())
     override val consoleLogs: StateFlow<List<ConsoleMessageEntry>> = _consoleLogs.asStateFlow()
 
+    private val _isScrollingUp = MutableStateFlow(true)
+    val isScrollingUp: StateFlow<Boolean> = _isScrollingUp.asStateFlow()
+
     private val mainHandler = Handler(Looper.getMainLooper())
     private val agentWebViewClient: AgentWebViewClient
     private val agentWebChromeClient: AgentWebChromeClient
 
     init {
         configureWebSettings()
+        applyPreferences(browserPreferences)
+
+        // Register Web Share Bridge for native Android sharing support
+        webView.addJavascriptInterface(WebShareBridge(context), "__androidWebShare")
+
+        // Track vertical scroll direction to collapse/expand URL bar
+        webView.setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
+            val delta = scrollY - oldScrollY
+            if (delta > 12 && scrollY > 50) {
+                if (_isScrollingUp.value) {
+                    _isScrollingUp.value = false
+                }
+            } else if (delta < -12 || scrollY <= 25) {
+                if (!_isScrollingUp.value) {
+                    _isScrollingUp.value = true
+                }
+            }
+        }
 
         agentWebViewClient = AgentWebViewClient(
             context = context,
@@ -46,8 +75,8 @@ class WebViewBrowserEngine(
             browserStateFlow = _state,
             consoleLogsFlow = _consoleLogs,
             onProgressChange = { view, progress ->
-                // Proactively inject agent runtime at early interactive stage (>=70%)
-                if (progress >= 70) {
+                // Inject agent runtime when page DOM reaches interactive ready stage
+                if (progress >= 85) {
                     agentWebViewClient.injectAgentRuntime(view)
                 }
             }
@@ -68,21 +97,113 @@ class WebViewBrowserEngine(
         settings.builtInZoomControls = true
         settings.displayZoomControls = false
         settings.allowFileAccess = false
-        settings.allowContentAccess = false
+        settings.allowContentAccess = true
         settings.setSupportMultipleWindows(false)
         settings.javaScriptCanOpenWindowsAutomatically = false
-        settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-        settings.mediaPlaybackRequiresUserGesture = true
+        settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+        settings.mediaPlaybackRequiresUserGesture = false
+        settings.cacheMode = WebSettings.LOAD_DEFAULT
+        settings.setGeolocationEnabled(true)
 
-        // Emulate modern Chrome on Android User-Agent
-        settings.userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36 ChromeMobileAI/1.0"
+        // Ensure proper rendering layer & background color
+        webView.setBackgroundColor(Color.WHITE)
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        webView.isFocusable = true
+        webView.isFocusableInTouchMode = true
+        webView.isClickable = true
+
+        // Set default zoom factor to 80%
+        settings.textZoom = browserPreferences.zoomFactor
+
+        // Default mobile Chrome User-Agent (Chrome 131)
+        settings.userAgentString = MOBILE_USER_AGENT
+
+        // Configure CookieManager
+        val cookieManager = CookieManager.getInstance()
+        cookieManager.setAcceptCookie(true)
+        cookieManager.setAcceptThirdPartyCookies(webView, false)
+    }
+
+    fun applyPreferences(prefs: BrowserPreferences) {
+        runOnMainThread {
+            val settings = webView.settings
+            settings.textZoom = prefs.zoomFactor
+            settings.javaScriptEnabled = prefs.javascriptEnabled
+            settings.domStorageEnabled = prefs.domStorageEnabled
+            settings.databaseEnabled = prefs.domStorageEnabled
+            settings.javaScriptCanOpenWindowsAutomatically = prefs.popupsEnabled
+            settings.loadsImagesAutomatically = prefs.loadsImagesAutomatically
+
+            // Desktop Site Mode toggle
+            settings.userAgentString = if (prefs.desktopSiteMode) {
+                DESKTOP_USER_AGENT
+            } else {
+                MOBILE_USER_AGENT
+            }
+
+            // Cookie Policy
+            val cookieManager = CookieManager.getInstance()
+            when (prefs.cookiePolicy) {
+                CookiePolicy.ALLOW_ALL -> {
+                    cookieManager.setAcceptCookie(true)
+                    cookieManager.setAcceptThirdPartyCookies(webView, true)
+                }
+                CookiePolicy.BLOCK_THIRD_PARTY -> {
+                    cookieManager.setAcceptCookie(true)
+                    cookieManager.setAcceptThirdPartyCookies(webView, false)
+                }
+                CookiePolicy.BLOCK_ALL -> {
+                    cookieManager.setAcceptCookie(false)
+                    cookieManager.setAcceptThirdPartyCookies(webView, false)
+                }
+            }
+        }
+    }
+
+    override fun setZoomFactor(percent: Int) {
+        runOnMainThread {
+            browserPreferences.zoomFactor = percent
+            webView.settings.textZoom = percent
+        }
+    }
+
+    override fun getZoomFactor(): Int {
+        return webView.settings.textZoom
+    }
+
+    override fun clearBrowsingData(
+        clearHistory: Boolean,
+        clearCookies: Boolean,
+        clearCache: Boolean,
+        clearStorage: Boolean,
+        onComplete: (() -> Unit)?
+    ) {
+        runOnMainThread {
+            if (clearHistory) {
+                webView.clearHistory()
+            }
+            if (clearCache) {
+                webView.clearCache(true)
+            }
+            if (clearCookies) {
+                CookieManager.getInstance().removeAllCookies {
+                    CookieManager.getInstance().flush()
+                }
+            }
+            if (clearStorage) {
+                WebStorage.getInstance().deleteAllData()
+            }
+            onComplete?.invoke()
+        }
     }
 
     override fun loadUrl(url: String) {
+        _isScrollingUp.value = true
+        val searchEngine = browserPreferences.searchEngine
         val formattedUrl = when {
-            url.startsWith("http://") || url.startsWith("https://") || url.startsWith("about:") -> url
+            url.startsWith("http://") || url.startsWith("https://") || url.startsWith("about:") || url.startsWith("data:") || url.startsWith("blob:") -> url
             url.contains(".") && !url.contains(" ") -> "https://$url"
-            else -> "https://www.google.com/search?q=" + java.net.URLEncoder.encode(url, "UTF-8")
+            else -> searchEngine.searchUrl + java.net.URLEncoder.encode(url, "UTF-8")
         }
 
         runOnMainThread {
@@ -91,6 +212,7 @@ class WebViewBrowserEngine(
     }
 
     override fun reload() {
+        _isScrollingUp.value = true
         runOnMainThread {
             webView.reload()
         }
@@ -103,6 +225,7 @@ class WebViewBrowserEngine(
     }
 
     override fun goBack(): Boolean {
+        _isScrollingUp.value = true
         if (webView.canGoBack()) {
             runOnMainThread {
                 webView.goBack()
@@ -113,6 +236,7 @@ class WebViewBrowserEngine(
     }
 
     override fun goForward(): Boolean {
+        _isScrollingUp.value = true
         if (webView.canGoForward()) {
             runOnMainThread {
                 webView.goForward()
@@ -152,39 +276,8 @@ class WebViewBrowserEngine(
         }
     }
 
-    /**
-     * Dispatch real hardware MotionEvent tap onto WebView surface at CSS coordinates
-     */
-    fun dispatchNativeTap(cssX: Float, cssY: Float) {
-        runOnMainThread {
-            try {
-                val density = webView.context.resources.displayMetrics.density
-                val screenX = cssX * density
-                val screenY = cssY * density
-                val downTime = SystemClock.uptimeMillis()
-                val eventTime = SystemClock.uptimeMillis()
-
-                val downEvent = MotionEvent.obtain(downTime, eventTime, MotionEvent.ACTION_DOWN, screenX, screenY, 0)
-                val upEvent = MotionEvent.obtain(downTime, eventTime + 40, MotionEvent.ACTION_UP, screenX, screenY, 0)
-
-                webView.dispatchTouchEvent(downEvent)
-                webView.dispatchTouchEvent(upEvent)
-
-                downEvent.recycle()
-                upEvent.recycle()
-            } catch (e: Exception) {
-                // Ignore native tap dispatch errors
-            }
-        }
-    }
-
     override fun setAgentInteractionEnabled(enabled: Boolean) {
-        val command = if (enabled) {
-            "window.__mobileAgent && window.__mobileAgent.showElementBadges && window.__mobileAgent.showElementBadges();"
-        } else {
-            "window.__mobileAgent && window.__mobileAgent.clearElementBadges && window.__mobileAgent.clearElementBadges();"
-        }
-        evaluateJavascript(command, null)
+        // No-op: Agent interaction is non-destructive
     }
 
     override fun clearConsoleLogs() {
@@ -206,5 +299,10 @@ class WebViewBrowserEngine(
         } else {
             mainHandler.post(action)
         }
+    }
+
+    companion object {
+        const val MOBILE_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36 ChromeMobileAI/1.0"
+        const val DESKTOP_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 ChromeMobileAI/1.0"
     }
 }
