@@ -3,6 +3,8 @@ package com.chromemobile.browser.preferences
 import android.content.Context
 import android.content.SharedPreferences
 import com.chromemobile.browser.agent.SearchEngine
+import org.json.JSONArray
+import org.json.JSONObject
 
 enum class CookiePolicy(val displayName: String, val description: String) {
     BLOCK_THIRD_PARTY("Block third-party cookies", "Sites might not work if third-party cookies are blocked (Default Chrome behavior)."),
@@ -15,6 +17,8 @@ enum class SafeBrowsingLevel(val displayName: String, val description: String) {
     ENHANCED("Enhanced protection", "Faster, proactive protection with advanced AI threat analysis."),
     OFF("No protection", "Not recommended. Turns off dangerous site alerts.")
 }
+
+data class Bookmark(val title: String, val url: String)
 
 class BrowserPreferences(context: Context) {
 
@@ -116,6 +120,31 @@ class BrowserPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_LOAD_IMAGES, true)
         set(value) = prefs.edit().putBoolean(KEY_LOAD_IMAGES, value).apply()
 
+    // Bookmarks — persisted as a JSON array of {title, url} objects
+    var bookmarks: List<Bookmark>
+        get() {
+            val json = prefs.getString(KEY_BOOKMARKS, null) ?: return DEFAULT_BOOKMARKS
+            return try {
+                val arr = JSONArray(json)
+                (0 until arr.length()).map { i ->
+                    val obj = arr.getJSONObject(i)
+                    Bookmark(title = obj.getString("title"), url = obj.getString("url"))
+                }
+            } catch (e: Exception) {
+                DEFAULT_BOOKMARKS
+            }
+        }
+        set(value) {
+            val arr = JSONArray()
+            value.forEach { bm ->
+                arr.put(JSONObject().apply {
+                    put("title", bm.title)
+                    put("url", bm.url)
+                })
+            }
+            prefs.edit().putString(KEY_BOOKMARKS, arr.toString()).apply()
+        }
+
     companion object {
         const val DEFAULT_ZOOM_FACTOR = 80
         private const val PREFS_NAME = "chrome_mobile_browser_settings"
@@ -134,5 +163,13 @@ class BrowserPreferences(context: Context) {
         private const val KEY_DESKTOP_SITE_MODE = "browser_desktop_site_mode"
         private const val KEY_FORCE_DARK_MODE = "browser_force_dark_mode"
         private const val KEY_LOAD_IMAGES = "browser_load_images"
+        private const val KEY_BOOKMARKS = "browser_bookmarks"
+
+        val DEFAULT_BOOKMARKS = listOf(
+            Bookmark("Google", "https://google.com"),
+            Bookmark("GitHub", "https://github.com"),
+            Bookmark("YouTube", "https://youtube.com"),
+            Bookmark("Wikipedia", "https://en.wikipedia.org"),
+        )
     }
 }

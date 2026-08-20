@@ -253,6 +253,7 @@ fun BrowserScreen(
                                 }
                             )
                         },
+                        onOpenSettings = { showSettingsScreen = true },
                         modifier = Modifier.fillMaxSize()
                     )
                 }

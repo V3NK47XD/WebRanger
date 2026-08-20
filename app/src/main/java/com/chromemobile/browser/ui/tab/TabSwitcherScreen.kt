@@ -427,24 +427,55 @@ private fun TabCard(
                         modifier = Modifier.fillMaxSize()
                     )
                 } else {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(8.dp)
+                    // No bitmap: render a styled domain badge
+                    val domain = when {
+                        url == "about:blank" -> "New Tab"
+                        else -> url.removePrefix("https://").removePrefix("http://").substringBefore("/").substringBefore("?")
+                    }
+                    val initial = domain.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                androidx.compose.ui.graphics.Brush.radialGradient(
+                                    listOf(
+                                        if (isActive) BlueishGreen.copy(alpha = 0.07f) else HotPink.copy(alpha = 0.05f),
+                                        AmoledBlack
+                                    )
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Language,
-                            contentDescription = null,
-                            tint = Color(0xFF222634),
-                            modifier = Modifier.size(32.dp)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = if (url == "about:blank") "New Tab" else url.substringAfter("://").substringBefore("/"),
-                            color = Color(0xFF64748B),
-                            fontSize = 10.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .background(
+                                        androidx.compose.ui.graphics.Brush.linearGradient(
+                                            if (isActive) listOf(BlueishGreen.copy(alpha = 0.25f), HotPink.copy(alpha = 0.12f))
+                                            else listOf(Color(0xFF1A1F2E), Color(0xFF0D1117))
+                                        )
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = initial,
+                                    color = if (isActive) BlueishGreen else Color(0xFF4A5568),
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = domain,
+                                color = Color(0xFF4A5568),
+                                fontSize = 9.5.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 6.dp)
+                            )
+                        }
                     }
                 }
 
