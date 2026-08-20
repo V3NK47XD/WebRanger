@@ -3,7 +3,7 @@ package com.chromemobile.browser.ui
 import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -54,7 +54,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -67,7 +66,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -91,10 +90,7 @@ import com.chromemobile.browser.tab.TabManager
 import com.chromemobile.browser.ui.home.NewTabHomeScreen
 import com.chromemobile.browser.ui.tab.TabSwitcherScreen
 import com.chromemobile.browser.ui.theme.AmoledBlack
-import com.chromemobile.browser.ui.theme.AmoledBorder
-import com.chromemobile.browser.ui.theme.AmoledCard
 import com.chromemobile.browser.ui.theme.BlueishGreen
-import com.chromemobile.browser.ui.theme.BlueishGreenDark
 import com.chromemobile.browser.ui.theme.HotPink
 
 @Composable
@@ -127,16 +123,25 @@ fun BrowserScreen(
     var isDevMenuExpanded by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    // Rotating gradient transition for active AI agent pill
-    val infiniteTransition = rememberInfiniteTransition(label = "ai_pill_rotation")
-    val gradientAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
+    // Smooth throbbing / pulsing animation for active AI agent pill
+    val infiniteTransition = rememberInfiniteTransition(label = "ai_pill_pulse")
+    val pillPulseScale by infiniteTransition.animateFloat(
+        initialValue = 0.94f,
+        targetValue = 1.05f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2400, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
+            animation = tween(durationMillis = 750, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
         ),
-        label = "pill_angle"
+        label = "pill_scale"
+    )
+    val pillGlowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 0.95f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 750, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pill_glow"
     )
 
     // Automatically show AI overlay only when task completes or encounters an error
@@ -157,10 +162,10 @@ fun BrowserScreen(
         }
     }
 
-    // Dynamic zoom-scaled heights and font sizes
+    // Compact zoom-scaled height (tight fit, minimal extra space)
     val zoomRatio = (browserPreferences.zoomFactor / 80f).coerceIn(0.75f, 1.8f)
-    val omniboxHeight = (38 * zoomRatio).coerceIn(34f, 54f).dp
-    val omniboxFontSize = (12.5f * zoomRatio).coerceIn(11f, 16f).sp
+    val omniboxHeight = (32 * zoomRatio).coerceIn(28f, 44f).dp
+    val omniboxFontSize = (12f * zoomRatio).coerceIn(11f, 15f).sp
 
     // Visibility of URL bar: expands when scrolling up, loading, or on home screen
     val isUrlBarVisible = isScrollingUp || isHomeViewActive || browserState.isLoading
@@ -253,11 +258,11 @@ fun BrowserScreen(
                 }
             }
 
-            // Unified AMOLED Translucent Glassmorphic Bottom Dock
+            // Unified AMOLED Translucent Bottom Dock
             Surface(
                 color = Color(0xF2000000),
-                shadowElevation = 18.dp,
-                border = BorderStroke(1.dp, Color(0x3300F5D4)),
+                shadowElevation = 16.dp,
+                border = BorderStroke(1.dp, Color(0x2B00F5D4)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .imePadding()
@@ -281,7 +286,7 @@ fun BrowserScreen(
                             .widthIn(max = 760.dp)
                             .fillMaxWidth()
                     ) {
-                        // Loading Progress Indicator (Hot Pink & Blueish Green)
+                        // Loading Progress Indicator
                         if (browserState.isLoading && !isHomeViewActive) {
                             LinearProgressIndicator(
                                 progress = { browserState.progress / 100f },
@@ -290,10 +295,10 @@ fun BrowserScreen(
                                 trackColor = Color.Transparent
                             )
                         } else {
-                            HorizontalDivider(color = Color(0x3300F5D4), thickness = 0.5.dp)
+                            HorizontalDivider(color = Color(0x2200F5D4), thickness = 0.5.dp)
                         }
 
-                        // Row 1: Bottom URL Omnibox Bar (Scroll-aware collapsible with AMOLED styling)
+                        // Row 1: Bottom URL Omnibox Bar (Compact, tight fit, minimal extra space)
                         AnimatedVisibility(
                             visible = isUrlBarVisible,
                             enter = expandVertically() + fadeIn(),
@@ -302,14 +307,14 @@ fun BrowserScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Omnibox text field with glowing border
+                                // Compact Omnibox with subtle border
                                 Surface(
-                                    shape = RoundedCornerShape(12.dp),
+                                    shape = RoundedCornerShape(10.dp),
                                     color = Color(0xEE0A0C10),
-                                    border = BorderStroke(1.dp, Color(0x5500F5D4)),
+                                    border = BorderStroke(1.dp, Color(0x3300F5D4)),
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(omniboxHeight)
@@ -317,17 +322,17 @@ fun BrowserScreen(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .padding(horizontal = 10.dp),
+                                            .padding(horizontal = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Icon(
                                             imageVector = if (browserState.isSecure && !isHomeViewActive) Icons.Default.Lock else Icons.Default.Search,
                                             contentDescription = "Security",
                                             tint = if (browserState.isSecure && !isHomeViewActive) BlueishGreen else Color(0xFF8895A5),
-                                            modifier = Modifier.size(16.dp)
+                                            modifier = Modifier.size(15.dp)
                                         )
 
-                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
 
                                         Box(
                                             modifier = Modifier.weight(1f),
@@ -370,36 +375,34 @@ fun BrowserScreen(
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(5.dp))
 
-                                // Reload Button (AMOLED tile)
+                                // Reload Button (Borderless with soft Blueish Green accent background)
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xDD0D0F14),
-                                    border = BorderStroke(1.dp, Color(0x4400F5D4)),
+                                    color = Color(0x1F00F5D4),
                                     modifier = Modifier
-                                        .size(36.dp)
+                                        .size(34.dp)
                                         .clickable { browserEngine.reload() }
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             imageVector = Icons.Default.Refresh,
                                             contentDescription = "Reload Page",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(18.dp)
+                                            tint = BlueishGreen,
+                                            modifier = Modifier.size(17.dp)
                                         )
                                     }
                                 }
 
                                 Spacer(modifier = Modifier.width(4.dp))
 
-                                // Tab Button [ N ] (AMOLED tile with Blueish Green border)
+                                // Tab Button [ N ] (Borderless with soft accent background)
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xDD0D0F14),
-                                    border = BorderStroke(1.dp, if (tabs.size > 1) HotPink else Color(0x5500F5D4)),
+                                    color = if (tabs.size > 1) Color(0x2BFF2A85) else Color(0x1594A3B8),
                                     modifier = Modifier
-                                        .size(36.dp)
+                                        .size(34.dp)
                                         .clickable {
                                             tabManager.captureActiveTabThumbnail()
                                             showTabSwitcher = true
@@ -410,63 +413,61 @@ fun BrowserScreen(
                                             text = "${tabs.size}",
                                             color = if (tabs.size > 1) HotPink else Color.White,
                                             fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 13.sp
+                                            fontSize = 12.5.sp
                                         )
                                     }
                                 }
                             }
                         }
 
-                        // Row 2: Bottom Navigation Controls (Back/Forward, Rotating AI Pill, Settings & DevTools)
+                        // Row 2: Bottom Navigation Controls (Back/Forward, Pulsing AI Pill, Settings & DevTools)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
                         ) {
-                            // Left: Back & Forward navigation buttons with AMOLED borders
+                            // Left: Back & Forward navigation buttons with soft accent background
                             Row(
                                 modifier = Modifier.align(Alignment.CenterStart),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xDD0D0F14),
-                                    border = BorderStroke(1.dp, if (browserState.canGoBack) Color(0x6600F5D4) else Color(0x22334155)),
+                                    color = if (browserState.canGoBack) Color(0x1A00F5D4) else Color(0x0894A3B8),
                                     modifier = Modifier
-                                        .size(36.dp)
+                                        .size(34.dp)
                                         .clickable(enabled = browserState.canGoBack) { browserEngine.goBack() }
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                             contentDescription = "Back",
-                                            tint = if (browserState.canGoBack) Color.White else Color(0xFF475569),
-                                            modifier = Modifier.size(19.dp)
+                                            tint = if (browserState.canGoBack) BlueishGreen else Color(0xFF475569),
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
 
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xDD0D0F14),
-                                    border = BorderStroke(1.dp, if (browserState.canGoForward) Color(0x6600F5D4) else Color(0x22334155)),
+                                    color = if (browserState.canGoForward) Color(0x1A00F5D4) else Color(0x0894A3B8),
                                     modifier = Modifier
-                                        .size(36.dp)
+                                        .size(34.dp)
                                         .clickable(enabled = browserState.canGoForward) { browserEngine.goForward() }
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                                             contentDescription = "Forward",
-                                            tint = if (browserState.canGoForward) Color.White else Color(0xFF475569),
-                                            modifier = Modifier.size(19.dp)
+                                            tint = if (browserState.canGoForward) BlueishGreen else Color(0xFF475569),
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
                             }
 
-                            // Middle: Rotating Animated Gradient Navigation Pill for AI Agent
+                            // Middle: Pulsing / Throbbing Animated Navigation Pill for AI Agent
                             val isAgentWorking = agentState.status == AgentStatus.PLANNING ||
                                     agentState.status == AgentStatus.OBSERVING ||
                                     agentState.status == AgentStatus.REASONING ||
@@ -485,50 +486,39 @@ fun BrowserScreen(
                                 else -> "Ask WebRanger"
                             }
 
-                            // Rotating gradient math
-                            val rad = Math.toRadians(gradientAngle.toDouble())
-                            val cosVal = kotlin.math.cos(rad).toFloat()
-                            val sinVal = kotlin.math.sin(rad).toFloat()
-
-                            val rotatingGradientBrush = Brush.linearGradient(
-                                colors = listOf(
-                                    HotPink,
-                                    BlueishGreen,
-                                    HotPink
-                                ),
-                                start = Offset(100f * (1f - cosVal), 50f * (1f - sinVal)),
-                                end = Offset(100f * (1f + cosVal), 50f * (1f + sinVal))
-                            )
-
-                            val idlePillBrush = Brush.horizontalGradient(
-                                listOf(Color(0xFF140810), Color(0xFF041210))
-                            )
-
                             Surface(
                                 modifier = Modifier
                                     .align(Alignment.Center)
-                                    .height(36.dp)
+                                    .height(34.dp)
                                     .widthIn(min = 135.dp, max = 175.dp)
+                                    .scale(if (isAgentWorking) pillPulseScale else 1f)
                                     .clickable { showAgentOverlay = !showAgentOverlay },
-                                shape = RoundedCornerShape(18.dp),
+                                shape = RoundedCornerShape(17.dp),
                                 color = Color.Transparent,
-                                border = BorderStroke(
-                                    width = if (isAgentWorking) 1.5.dp else 1.2.dp,
-                                    brush = if (isAgentWorking) rotatingGradientBrush else SolidColor(if (showAgentOverlay) HotPink else Color(0x8000F5D4))
-                                ),
-                                shadowElevation = if (isAgentWorking) 8.dp else 2.dp
+                                border = if (isAgentWorking) {
+                                    BorderStroke(1.5.dp, HotPink.copy(alpha = pillGlowAlpha))
+                                } else {
+                                    BorderStroke(1.dp, if (showAgentOverlay) HotPink else Color(0x3300F5D4))
+                                },
+                                shadowElevation = if (isAgentWorking) 8.dp else 0.dp
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(if (isAgentWorking) rotatingGradientBrush else idlePillBrush)
+                                        .background(
+                                            if (isAgentWorking) {
+                                                Brush.horizontalGradient(listOf(HotPink, BlueishGreen))
+                                            } else {
+                                                Brush.horizontalGradient(listOf(Color(0xFF160812), Color(0xFF041412)))
+                                            }
+                                        )
                                         .padding(horizontal = 10.dp),
                                     horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     if (isAgentWorking) {
                                         CircularProgressIndicator(
-                                            modifier = Modifier.size(12.dp),
+                                            modifier = Modifier.size(11.dp),
                                             color = AmoledBlack,
                                             strokeWidth = 2.dp
                                         )
@@ -538,7 +528,7 @@ fun BrowserScreen(
                                             imageVector = Icons.Default.AutoAwesome,
                                             contentDescription = "AI Agent",
                                             tint = if (showAgentOverlay) HotPink else BlueishGreen,
-                                            modifier = Modifier.size(15.dp)
+                                            modifier = Modifier.size(14.dp)
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
                                     }
@@ -554,19 +544,18 @@ fun BrowserScreen(
                                 }
                             }
 
-                            // Right: Settings Button + Combined Collapsible DevTools Menu
+                            // Right: Settings Button + Combined DevTools Menu with soft accents
                             Row(
                                 modifier = Modifier.align(Alignment.CenterEnd),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                // Settings Button
+                                // Settings Button (Soft Hot Pink accent background, no harsh outline)
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xDD0D0F14),
-                                    border = BorderStroke(1.dp, Color(0x4400F5D4)),
+                                    color = Color(0x22FF2A85),
                                     modifier = Modifier
-                                        .size(36.dp)
+                                        .size(34.dp)
                                         .clickable { showSettingsScreen = true }
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
@@ -574,19 +563,18 @@ fun BrowserScreen(
                                             imageVector = Icons.Default.Settings,
                                             contentDescription = "Settings",
                                             tint = HotPink,
-                                            modifier = Modifier.size(19.dp)
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
 
-                                // DevTools Menu Button
+                                // DevTools Menu Button (Soft Blueish Green accent background, no harsh outline)
                                 Box {
                                     Surface(
                                         shape = RoundedCornerShape(10.dp),
-                                        color = Color(0xDD0D0F14),
-                                        border = BorderStroke(1.dp, Color(0x4400F5D4)),
+                                        color = Color(0x1A00F5D4),
                                         modifier = Modifier
-                                            .size(36.dp)
+                                            .size(34.dp)
                                             .clickable { isDevMenuExpanded = !isDevMenuExpanded }
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
@@ -594,12 +582,12 @@ fun BrowserScreen(
                                                 imageVector = Icons.Default.Terminal,
                                                 contentDescription = "Developer Tools Menu",
                                                 tint = if (consoleLogs.isNotEmpty()) HotPink else BlueishGreen,
-                                                modifier = Modifier.size(19.dp)
+                                                modifier = Modifier.size(18.dp)
                                             )
                                             if (consoleLogs.isNotEmpty()) {
                                                 Box(
                                                     modifier = Modifier
-                                                        .size(6.dp)
+                                                        .size(5.dp)
                                                         .align(Alignment.TopEnd)
                                                         .padding(top = 2.dp, end = 2.dp)
                                                         .background(HotPink, CircleShape)
@@ -656,7 +644,7 @@ fun BrowserScreen(
                                         )
 
                                         if (consoleLogs.isNotEmpty()) {
-                                            HorizontalDivider(color = AmoledBorder)
+                                            HorizontalDivider(color = Color(0xFF222634))
                                             DropdownMenuItem(
                                                 text = {
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -691,7 +679,7 @@ fun BrowserScreen(
                 .fillMaxSize()
                 .imePadding()
                 .navigationBarsPadding()
-                .padding(bottom = omniboxHeight + 54.dp),
+                .padding(bottom = omniboxHeight + 50.dp),
             contentAlignment = Alignment.BottomCenter
         ) {
             AgentOverlay(
