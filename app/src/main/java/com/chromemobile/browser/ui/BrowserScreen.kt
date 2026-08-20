@@ -179,7 +179,7 @@ fun BrowserScreen(
                 // Chromium WebView (Persistent in hierarchy per active tab)
                 androidx.compose.runtime.key(activeTab.id) {
                     AndroidView(
-                        factory = {
+                        factory = { ctx ->
                             (browserEngine.webView.parent as? ViewGroup)?.removeView(browserEngine.webView)
                             browserEngine.webView.apply {
                                 layoutParams = ViewGroup.LayoutParams(
@@ -189,12 +189,10 @@ fun BrowserScreen(
                             }
                         },
                         update = { view ->
-                            (view.parent as? ViewGroup)?.let { parent ->
-                                if (parent != view.parent) {
-                                    parent.removeView(view)
-                                }
-                            }
                             view.requestLayout()
+                        },
+                        onRelease = { view ->
+                            (view.parent as? ViewGroup)?.removeView(view)
                         },
                         modifier = Modifier.fillMaxSize()
                     )
