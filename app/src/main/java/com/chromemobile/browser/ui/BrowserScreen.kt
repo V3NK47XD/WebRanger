@@ -18,6 +18,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,8 +27,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.imeAnimationTarget
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -93,6 +96,7 @@ import com.chromemobile.browser.ui.theme.AmoledBlack
 import com.chromemobile.browser.ui.theme.BlueishGreen
 import com.chromemobile.browser.ui.theme.HotPink
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BrowserScreen(
     tabManager: TabManager,
@@ -266,7 +270,7 @@ fun BrowserScreen(
                 border = BorderStroke(1.dp, Color(0x2B00F5D4)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .imePadding()
+                    .windowInsetsPadding(WindowInsets.imeAnimationTarget)
                     .navigationBarsPadding()
             ) {
                 Box(
@@ -678,7 +682,7 @@ fun BrowserScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .imePadding()
+                .windowInsetsPadding(WindowInsets.imeAnimationTarget)
                 .navigationBarsPadding()
                 .padding(bottom = omniboxHeight + 50.dp),
             contentAlignment = Alignment.BottomCenter
