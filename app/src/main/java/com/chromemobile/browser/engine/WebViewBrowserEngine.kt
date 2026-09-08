@@ -84,6 +84,10 @@ class WebViewBrowserEngine(
 
         webView.webViewClient = agentWebViewClient
         webView.webChromeClient = agentWebChromeClient
+
+        // Ensure the WebView has default mobile dimensions even when offscreen or in background
+        ensureMeasured()
+        webView.resumeTimers()
     }
 
     private fun configureWebSettings() {
@@ -264,14 +268,31 @@ class WebViewBrowserEngine(
 
     override fun captureScreenshot(onCaptured: (Bitmap?) -> Unit) {
         runOnMainThread {
-            SnapshotProvider.captureWebView(webView, onCaptured)
+            ensureMeasured()
+            SnapshotProvider.captureWebView(webView, fullResolution = true, onCaptured)
         }
     }
 
     override suspend fun captureScreenshotAsync(): Bitmap? = withContext(Dispatchers.Main) {
         suspendCoroutine { continuation ->
-            SnapshotProvider.captureWebView(webView) { bitmap ->
+            ensureMeasured()
+            SnapshotProvider.captureWebView(webView, fullResolution = true) { bitmap ->
                 continuation.resume(bitmap)
+            }
+        }
+    }
+
+    fun ensureMeasured() {
+        runOnMainThread {
+            if (webView.width <= 0 || webView.height <= 0) {
+                val dm = context.resources.displayMetrics
+                val w = if (dm.widthPixels > 0) dm.widthPixels else 1080
+                val h = if (dm.heightPixels > 0) dm.heightPixels else 2400
+                webView.measure(
+                    View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY)
+                )
+                webView.layout(0, 0, w, h)
             }
         }
     }

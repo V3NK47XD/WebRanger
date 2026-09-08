@@ -21,6 +21,7 @@ import com.chromemobile.browser.mcp.MobileChromeMcpServer
 import com.chromemobile.browser.password.PasswordManager
 import com.chromemobile.browser.preferences.BrowserPreferences
 import com.chromemobile.browser.tab.TabManager
+import com.chromemobile.browser.service.WebRangerBackgroundService
 import com.chromemobile.browser.ui.BrowserScreen
 import com.chromemobile.browser.ui.onboarding.OnboardingScreen
 import com.chromemobile.browser.ui.theme.ChromeMobileTheme
@@ -84,6 +85,16 @@ class MainActivity : ComponentActivity() {
             llmClient = llmClient,
             tabManager = tabManager
         )
+
+        // Start WebRanger Background Service and Embedded MCP Server for external agents (omp, Claude Code)
+        if (browserPreferences.mcpServerEnabled) {
+            WebRangerBackgroundService.start(
+                context = this,
+                mcpServer = mcpServer,
+                tabManager = tabManager,
+                port = browserPreferences.mcpServerPort
+            )
+        }
         setContent {
             ChromeMobileTheme {
                 Surface(
@@ -128,6 +139,9 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         agentCoordinator.stop()
-        tabManager.destroyAll()
+        if (!browserPreferences.backgroundKeepAlive) {
+            WebRangerBackgroundService.stop(this)
+            tabManager.destroyAll()
+        }
     }
 }

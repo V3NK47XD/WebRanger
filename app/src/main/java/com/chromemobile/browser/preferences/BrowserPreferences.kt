@@ -34,6 +34,21 @@ class BrowserPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_SHARE_PASSWORDS_WITH_LLM, false)
         set(value) = prefs.edit().putBoolean(KEY_SHARE_PASSWORDS_WITH_LLM, value).apply()
 
+    // Background MCP Server enabled (for Termux / omp / Claude Code)
+    var mcpServerEnabled: Boolean
+        get() = prefs.getBoolean(KEY_MCP_SERVER_ENABLED, true)
+        set(value) = prefs.edit().putBoolean(KEY_MCP_SERVER_ENABLED, value).apply()
+
+    // Background MCP Server Port (default 8765)
+    var mcpServerPort: Int
+        get() = prefs.getInt(KEY_MCP_SERVER_PORT, 8765)
+        set(value) = prefs.edit().putInt(KEY_MCP_SERVER_PORT, value).apply()
+
+    // Background Keep-Alive (Foreground service with WakeLock)
+    var backgroundKeepAlive: Boolean
+        get() = prefs.getBoolean(KEY_BACKGROUND_KEEP_ALIVE, true)
+        set(value) = prefs.edit().putBoolean(KEY_BACKGROUND_KEEP_ALIVE, value).apply()
+
     // Save Passwords prompt
     var savePasswordsEnabled: Boolean
         get() = prefs.getBoolean(KEY_SAVE_PASSWORDS_ENABLED, true)
@@ -164,6 +179,9 @@ class BrowserPreferences(context: Context) {
         private const val KEY_FORCE_DARK_MODE = "browser_force_dark_mode"
         private const val KEY_LOAD_IMAGES = "browser_load_images"
         private const val KEY_BOOKMARKS = "browser_bookmarks"
+        private const val KEY_MCP_SERVER_ENABLED = "mcp_server_enabled"
+        private const val KEY_MCP_SERVER_PORT = "mcp_server_port"
+        private const val KEY_BACKGROUND_KEEP_ALIVE = "background_keep_alive"
 
         val DEFAULT_BOOKMARKS = listOf(
             Bookmark("Google", "https://google.com"),

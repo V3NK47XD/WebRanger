@@ -242,6 +242,11 @@ private fun MainSettingsList(
     var isApiKeyVisible by remember { mutableStateOf(false) }
     var isProviderDropdownExpanded by remember { mutableStateOf(false) }
 
+    var mcpServerEnabled by remember { mutableStateOf(browserPreferences.mcpServerEnabled) }
+    var backgroundKeepAlive by remember { mutableStateOf(browserPreferences.backgroundKeepAlive) }
+    var mcpServerPort by remember { mutableStateOf(browserPreferences.mcpServerPort.toString()) }
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
     val savedCredsCount = remember(passwordManager) { passwordManager.getAllCredentials().size }
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -815,6 +820,169 @@ private fun MainSettingsList(
                                 unfocusedTextColor = Color.White
                             )
                         )
+                    }
+                }
+
+                // Section: Localhost MCP Server for Termux / External Agents
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = AmoledCard),
+                    border = BorderStroke(1.dp, AmoledBorder)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Code, contentDescription = null, tint = BlueishGreen, modifier = Modifier.size(24.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Embedded MCP Server for Termux",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "Exposes standard MCP (SSE & HTTP JSON-RPC) on 127.0.0.1 for omp, Claude Code, and terminal agents.",
+                                        color = Color(0xFF94A3B8),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                            Switch(
+                                checked = mcpServerEnabled,
+                                onCheckedChange = {
+                                    mcpServerEnabled = it
+                                    browserPreferences.mcpServerEnabled = it
+                                    if (it) {
+                                        val p = mcpServerPort.toIntOrNull() ?: 8765
+                                        com.chromemobile.browser.service.WebRangerBackgroundService.mcpServerRef?.let { srv ->
+                                            com.chromemobile.browser.service.WebRangerBackgroundService.start(
+                                                context, srv,
+                                                com.chromemobile.browser.service.WebRangerBackgroundService.tabManagerRef,
+                                                p
+                                            )
+                                        }
+                                    } else {
+                                        com.chromemobile.browser.service.WebRangerBackgroundService.stop(context)
+                                    }
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = AmoledBlack,
+                                    checkedTrackColor = BlueishGreen
+                                )
+                            )
+                        }
+
+                        if (mcpServerEnabled) {
+                            Spacer(modifier = Modifier.height(14.dp))
+                            HorizontalDivider(color = AmoledBorder, thickness = 1.dp)
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Keep alive in background
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Keep Browser Active in Background",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        text = "Runs Foreground Service with WakeLock so WebView & DOM never freeze when switched to Termux.",
+                                        color = Color(0xFF94A3B8),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                Switch(
+                                    checked = backgroundKeepAlive,
+                                    onCheckedChange = {
+                                        backgroundKeepAlive = it
+                                        browserPreferences.backgroundKeepAlive = it
+                                    },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = AmoledBlack,
+                                        checkedTrackColor = BlueishGreen
+                                    )
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Port configuration
+                            Text("Server Port", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            OutlinedTextField(
+                                value = mcpServerPort,
+                                onValueChange = {
+                                    mcpServerPort = it.filter { ch -> ch.isDigit() }
+                                    it.toIntOrNull()?.let { p ->
+                                        browserPreferences.mcpServerPort = p
+                                    }
+                                },
+                                placeholder = { Text("8765", color = Color(0xFF64748B)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = BlueishGreen,
+                                    unfocusedBorderColor = AmoledBorder,
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Server Endpoint & Quick Copy
+                            val activePort = mcpServerPort.toIntOrNull() ?: 8765
+                            val sseUrl = "http://127.0.0.1:$activePort/sse"
+                            val claudeCmd = "claude mcp add --transport sse webranger $sseUrl"
+
+                            Text("Claude Code Connection Command:", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        clipboardManager.setText(AnnotatedString(claudeCmd))
+                                        Toast.makeText(context, "Copied Claude Code command!", Toast.LENGTH_SHORT).show()
+                                    },
+                                shape = RoundedCornerShape(8.dp),
+                                color = AmoledBlack,
+                                border = BorderStroke(1.dp, AmoledBorder)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = claudeCmd,
+                                        color = BlueishGreen,
+                                        fontSize = 11.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = Color.Gray, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
                     }
                 }
 

@@ -20,7 +20,8 @@ object SnapshotProvider {
     private const val THUMB_W = 480
     private const val THUMB_H = 320
 
-    fun captureWebView(webView: WebView, onCaptured: (Bitmap?) -> Unit) {
+    fun captureWebView(webView: WebView, fullResolution: Boolean = false, onCaptured: (Bitmap?) -> Unit) {
+        ensureMeasured(webView)
         val width = webView.width
         val height = webView.height
 
@@ -30,20 +31,39 @@ object SnapshotProvider {
         }
 
         val activity = webView.context as? Activity
-        if (activity != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        // PixelCopy only works when the view is attached to an active window in the foreground
+        if (activity != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            webView.isAttachedToWindow && !activity.isFinishing
+        ) {
             captureWithPixelCopy(activity, webView) { bitmap ->
-                onCaptured(bitmap?.let { scaleThumbnail(it) })
+                val processed = if (fullResolution) bitmap else bitmap?.let { scaleThumbnail(it) }
+                onCaptured(processed)
             }
         } else {
+            // Safe software canvas drawing for background or unattached views
             captureWithDrawingCache(webView) { bitmap ->
-                onCaptured(bitmap?.let { scaleThumbnail(it) })
+                val processed = if (fullResolution) bitmap else bitmap?.let { scaleThumbnail(it) }
+                onCaptured(processed)
             }
         }
     }
 
-    suspend fun captureWebViewAsync(webView: WebView): Bitmap? = suspendCoroutine { continuation ->
-        captureWebView(webView) { bitmap ->
+    suspend fun captureWebViewAsync(webView: WebView, fullResolution: Boolean = false): Bitmap? = suspendCoroutine { continuation ->
+        captureWebView(webView, fullResolution) { bitmap ->
             continuation.resume(bitmap)
+        }
+    }
+
+    private fun ensureMeasured(view: View) {
+        if (view.width <= 0 || view.height <= 0) {
+            val dm = view.context.resources.displayMetrics
+            val w = if (view.width > 0) view.width else if (dm.widthPixels > 0) dm.widthPixels else 1080
+            val h = if (view.height > 0) view.height else if (dm.heightPixels > 0) dm.heightPixels else 2400
+            view.measure(
+                View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY)
+            )
+            view.layout(0, 0, w, h)
         }
     }
 
@@ -92,10 +112,13 @@ object SnapshotProvider {
 
     private fun captureWithDrawingCache(view: View, onCaptured: (Bitmap?) -> Unit) {
         try {
+            ensureMeasured(view)
+            val w = view.width.coerceAtLeast(1080)
+            val h = view.height.coerceAtLeast(1920)
             // Force a software layer so hardware-accelerated WebViews draw correctly
             val prev = view.layerType
             view.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             view.draw(canvas)
             view.setLayerType(prev, null)
