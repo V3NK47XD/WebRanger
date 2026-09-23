@@ -45,4 +45,24 @@ class BrowserPreferencesTest {
         assertTrue(WebViewBrowserEngine.MOBILE_USER_AGENT.contains("Chrome/131.0.0.0"))
         assertTrue(WebViewBrowserEngine.DESKTOP_USER_AGENT.contains("Chrome/131.0.0.0"))
     }
+
+    @Test
+    fun testDynamicUserAgentUsesRealChromeVersion() {
+        val customVersion = "134.0.6998.39"
+        val mobile = WebViewBrowserEngine.buildMobileUserAgent(customVersion)
+        val desktop = WebViewBrowserEngine.buildDesktopUserAgent(customVersion)
+        assertTrue(mobile.contains("Chrome/134.0.6998.39"))
+        assertTrue(desktop.contains("Chrome/134.0.6998.39"))
+        assertTrue(mobile.contains("Mobile Safari"))
+        assertTrue(desktop.contains("Safari"))
+        assertFalse(desktop.contains("Mobile Safari"))
+        assertFalse(mobile.contains("ChromeMobileAI"))
+        assertFalse(desktop.contains("ChromeMobileAI"))
+    }
+
+    @Test
+    fun testDetectChromeVersionFallback() {
+        val fallbackVersion = WebViewBrowserEngine.detectChromeVersion(null, null)
+        assertEquals(WebViewBrowserEngine.DEFAULT_CHROME_VERSION, fallbackVersion)
+    }
 }

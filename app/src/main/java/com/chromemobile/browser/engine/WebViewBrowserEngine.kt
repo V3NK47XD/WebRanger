@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -13,6 +14,7 @@ import android.webkit.CookieManager
 import android.webkit.WebSettings
 import android.webkit.WebStorage
 import android.webkit.WebView
+import androidx.webkit.WebViewCompat
 import android.webkit.WebViewClient
 import com.chromemobile.browser.agent.SearchEngine
 import com.chromemobile.browser.preferences.BrowserPreferences
@@ -31,6 +33,12 @@ class WebViewBrowserEngine(
     val webView: WebView = WebView(context),
     private val browserPreferences: BrowserPreferences = BrowserPreferences(context)
 ) : BrowserEngine {
+    val chromeVersion: String = detectChromeVersion(context, webView)
+    val mobileUserAgent: String = buildMobileUserAgent(chromeVersion)
+    val desktopUserAgent: String = buildDesktopUserAgent(chromeVersion)
+
+    fun getUserAgent(): String = webView.settings.userAgentString
+
 
     private val _state = MutableStateFlow(BrowserState())
     override val state: StateFlow<BrowserState> = _state.asStateFlow()
@@ -49,8 +57,6 @@ class WebViewBrowserEngine(
         configureWebSettings()
         applyPreferences(browserPreferences)
 
-        // Register Web Share Bridge for native Android sharing support
-        webView.addJavascriptInterface(WebShareBridge(context), "__androidWebShare")
 
         // Track vertical scroll direction to collapse/expand URL bar
         webView.setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
@@ -75,9 +81,12 @@ class WebViewBrowserEngine(
             browserStateFlow = _state,
             consoleLogsFlow = _consoleLogs,
             onProgressChange = { view, progress ->
-                // Inject agent runtime when page DOM reaches interactive ready stage
-                if (progress >= 85) {
-                    agentWebViewClient.injectAgentRuntime(view)
+                // Inject agent runtime when page DOM reaches interactive ready stage and agent is active
+                if (progress >= 85 && _isAgentInteractionEnabled.value) {
+                    val currentUrl = view.url
+                    if (!AgentWebViewClient.isChallengeUrl(currentUrl)) {
+                        agentWebViewClient.injectAgentRuntime(view)
+                    }
                 }
             }
         )
@@ -119,13 +128,16 @@ class WebViewBrowserEngine(
         // Set default zoom factor to 80%
         settings.textZoom = browserPreferences.zoomFactor
 
-        // Default mobile Chrome User-Agent (Chrome 131)
-        settings.userAgentString = MOBILE_USER_AGENT
+        // Set mobile Chrome User-Agent with real Chrome engine version
+        settings.userAgentString = mobileUserAgent
 
         // Configure CookieManager
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
-        cookieManager.setAcceptThirdPartyCookies(webView, false)
+        cookieManager.setAcceptThirdPartyCookies(
+            webView,
+            browserPreferences.cookiePolicy == CookiePolicy.ALLOW_ALL
+        )
     }
 
     fun applyPreferences(prefs: BrowserPreferences) {
@@ -140,9 +152,9 @@ class WebViewBrowserEngine(
 
             // Desktop Site Mode toggle
             settings.userAgentString = if (prefs.desktopSiteMode) {
-                DESKTOP_USER_AGENT
+                desktopUserAgent
             } else {
-                MOBILE_USER_AGENT
+                mobileUserAgent
             }
 
             // Cookie Policy
@@ -297,8 +309,23 @@ class WebViewBrowserEngine(
         }
     }
 
+    private val _isAgentInteractionEnabled = MutableStateFlow(false)
+    val isAgentInteractionEnabled: StateFlow<Boolean> = _isAgentInteractionEnabled.asStateFlow()
+
     override fun setAgentInteractionEnabled(enabled: Boolean) {
-        // No-op: Agent interaction is non-destructive
+        _isAgentInteractionEnabled.value = enabled
+        agentWebViewClient.isAgentActive = enabled
+        if (enabled) {
+            runOnMainThread {
+                agentWebViewClient.injectAgentRuntime(webView)
+            }
+        }
+    }
+
+    fun ensureAgentRuntime() {
+        runOnMainThread {
+            agentWebViewClient.injectAgentRuntime(webView)
+        }
     }
 
     override fun clearConsoleLogs() {
@@ -323,7 +350,70 @@ class WebViewBrowserEngine(
     }
 
     companion object {
-        const val MOBILE_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36 ChromeMobileAI/1.0"
-        const val DESKTOP_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 ChromeMobileAI/1.0"
+        const val DEFAULT_CHROME_VERSION = "131.0.0.0"
+        const val MOBILE_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+        const val DESKTOP_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
+        fun detectChromeVersion(context: Context?, webView: WebView? = null): String {
+            // 1. Query WebViewCompat for the active WebView provider package
+            if (context != null) {
+                try {
+                    val packageInfo = WebViewCompat.getCurrentWebViewPackage(context)
+                    val versionName = packageInfo?.versionName
+                    if (!versionName.isNullOrBlank()) {
+                        return versionName
+                    }
+                } catch (_: Throwable) {
+                    // Fallback to next detection strategy
+                }
+            }
+
+            // 2. Query default User-Agent from WebSettings
+            if (context != null) {
+                try {
+                    val defaultUa = WebSettings.getDefaultUserAgent(context)
+                    if (!defaultUa.isNullOrBlank()) {
+                        val match = Regex("""Chrome/([0-9.]+)""").find(defaultUa)
+                        val version = match?.groupValues?.get(1)
+                        if (!version.isNullOrBlank()) {
+                            return version
+                        }
+                    }
+                } catch (_: Throwable) {
+                    // Fallback to next detection strategy
+                }
+            }
+
+            // 3. Query User-Agent from WebView instance
+            if (webView != null) {
+                try {
+                    val ua = webView.settings.userAgentString
+                    if (!ua.isNullOrBlank()) {
+                        val match = Regex("""Chrome/([0-9.]+)""").find(ua)
+                        val version = match?.groupValues?.get(1)
+                        if (!version.isNullOrBlank()) {
+                            return version
+                        }
+                    }
+                } catch (_: Throwable) {
+                    // Fallback to default
+                }
+            }
+
+            return DEFAULT_CHROME_VERSION
+        }
+
+        fun buildMobileUserAgent(chromeVersion: String): String {
+            val androidVersion = try {
+                Build.VERSION.RELEASE?.takeIf { it.isNotBlank() } ?: "14"
+            } catch (_: Throwable) {
+                "14"
+            }
+            return "Mozilla/5.0 (Linux; Android $androidVersion; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/$chromeVersion Mobile Safari/537.36"
+        }
+
+        fun buildDesktopUserAgent(chromeVersion: String): String {
+            return "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/$chromeVersion Safari/537.36"
+        }
     }
 }

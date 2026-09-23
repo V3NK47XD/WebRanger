@@ -3,6 +3,7 @@ package com.chromemobile.browser.agent
 import android.graphics.Bitmap
 import android.util.Base64
 import com.chromemobile.browser.engine.BrowserEngine
+import com.chromemobile.browser.engine.WebViewBrowserEngine
 import com.chromemobile.browser.password.PasswordManager
 import com.chromemobile.browser.password.SavedCredential
 import com.chromemobile.browser.preferences.BrowserPreferences
@@ -91,6 +92,7 @@ class AgentToolExecutor(
     }
 
     suspend fun fetchDomSnapshot(viewportOnly: Boolean = true): DomSnapshotResponse? {
+        (currentEngine as? WebViewBrowserEngine)?.ensureAgentRuntime()
         val script = "window.__mobileAgent ? JSON.stringify(window.__mobileAgent.getDOMSnapshot({ viewportOnly: $viewportOnly })) : null;"
         val rawJson = currentEngine.evaluateJavascriptAsync(script)
 
@@ -164,6 +166,7 @@ class AgentToolExecutor(
             return errorResult(call, "SecurityGuard blocked click: ${safetyCheck.promptMessage}")
         }
 
+        (currentEngine as? WebViewBrowserEngine)?.ensureAgentRuntime()
         val script = "window.__mobileAgent ? JSON.stringify(window.__mobileAgent.interact('click', { id: $elementId })) : null;"
         val rawResult = currentEngine.evaluateJavascriptAsync(script)
 
@@ -197,6 +200,7 @@ class AgentToolExecutor(
         }
 
         val escapedText = text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+        (currentEngine as? WebViewBrowserEngine)?.ensureAgentRuntime()
         val script = "window.__mobileAgent ? JSON.stringify(window.__mobileAgent.interact('type', { id: $elementId, text: '$escapedText', clearFirst: $clearFirst, pressEnter: $pressEnter })) : null;"
         val rawResult = currentEngine.evaluateJavascriptAsync(script)
 
@@ -249,6 +253,7 @@ class AgentToolExecutor(
         val timeoutMs = call.arguments["timeout_ms"]?.jsonPrimitive?.intOrNull ?: 3000
         val debounceMs = call.arguments["debounce_ms"]?.jsonPrimitive?.intOrNull ?: 300
 
+        (currentEngine as? WebViewBrowserEngine)?.ensureAgentRuntime()
         val script = "window.__mobileAgent ? window.__mobileAgent.waitForStableDOM($timeoutMs, $debounceMs) : null;"
         val result = withTimeoutOrNull(timeoutMs.toLong() + 500) {
             currentEngine.evaluateJavascriptAsync(script)

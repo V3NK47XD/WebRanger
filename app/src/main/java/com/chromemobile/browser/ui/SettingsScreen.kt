@@ -246,7 +246,6 @@ private fun MainSettingsList(
     var backgroundKeepAlive by remember { mutableStateOf(browserPreferences.backgroundKeepAlive) }
     var mcpServerPort by remember { mutableStateOf(browserPreferences.mcpServerPort.toString()) }
     val clipboardManager = LocalClipboardManager.current
-    val context = LocalContext.current
     val savedCredsCount = remember(passwordManager) { passwordManager.getAllCredentials().size }
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -1000,7 +999,7 @@ private fun MainSettingsList(
                 SettingsInfoRow(
                     icon = Icons.Default.Public,
                     title = "Chromium Engine",
-                    value = "Chrome 131.0.0.0 (Mobile / ARM64 & x86_64)"
+                    value = "Chrome ${browserEngine.chromeVersion} (Mobile / ARM64 & x86_64)"
                 )
 
                 SettingsInfoRow(

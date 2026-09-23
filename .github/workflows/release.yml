@@ -1,0 +1,58 @@
+name: Publish Release APK
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Verify or Build APK
+        run: |
+          mkdir -p release
+          if [ -f "release/WebRanger.apk" ]; then
+            echo "Using existing APK from release/WebRanger.apk"
+          else
+            echo "Building APK via Gradle..."
+            chmod +x gradlew
+            ./gradlew assembleDebug --stacktrace
+            cp app/build/outputs/apk/debug/app-debug.apk release/WebRanger.apk
+          fi
+
+      - name: Create GitHub Release and Upload APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v1.0.{0}', github.run_number) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('WebRanger v1.0.{0}', github.run_number) }}
+          body: |
+            ### WebRanger APK Release
+            Autonomous Chromium AI Mobile Browser & MCP Server.
+
+            - **Commit**: `${{ github.sha }}`
+            - **Branch**: `${{ github.ref_name }}`
+            - **Build Source**: Automated GitHub Actions
+          files: |
+            release/*.apk
+            app/build/outputs/apk/debug/*.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

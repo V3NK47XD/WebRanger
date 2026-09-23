@@ -74,11 +74,11 @@ class BrowserPreferences(context: Context) {
     // Cookie Policy
     var cookiePolicy: CookiePolicy
         get() {
-            val name = prefs.getString(KEY_COOKIE_POLICY, CookiePolicy.BLOCK_THIRD_PARTY.name) ?: CookiePolicy.BLOCK_THIRD_PARTY.name
+            val name = prefs.getString(KEY_COOKIE_POLICY, CookiePolicy.ALLOW_ALL.name) ?: CookiePolicy.ALLOW_ALL.name
             return try {
                 CookiePolicy.valueOf(name)
             } catch (e: Exception) {
-                CookiePolicy.BLOCK_THIRD_PARTY
+                CookiePolicy.ALLOW_ALL
             }
         }
         set(value) = prefs.edit().putString(KEY_COOKIE_POLICY, value.name).apply()

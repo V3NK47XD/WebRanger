@@ -8,7 +8,6 @@
         return;
     }
 
-    console.log("[MobileAgent] Initializing pure non-destructive agent runtime on:", window.location.href);
 
     let elementIndexCounter = 0;
     const elementMap = new Map(); // id -> HTMLElement (In-memory, zero DOM pollution)
@@ -181,7 +180,6 @@
                 });
             }
 
-            console.log(`[MobileAgent] Extracted clean DOM snapshot with ${snapshotElements.length} elements`);
 
             // Create compressed markdown-like text representation for LLM context
             let textRepresentation = `Page Title: "${document.title}"\nURL: ${window.location.href}\nInteractive & Visible Elements:\n`;
@@ -228,7 +226,6 @@
             const id = params.id;
             let targetEl = null;
 
-            console.log(`[MobileAgent] Executing action '${action}' on ID #${id}`, params);
 
             if (id !== undefined && id !== null) {
                 targetEl = elementMap.get(parseInt(id, 10));
@@ -237,7 +234,6 @@
             }
 
             if (!targetEl) {
-                console.error(`[MobileAgent] Target element #${id} not found in in-memory map!`);
                 return { success: false, error: `Element with id ${id} not found` };
             }
 
@@ -320,7 +316,6 @@
                         } catch (e) {}
                     }
 
-                    console.log(`[MobileAgent] Click sequence completed successfully for ID #${id}`);
                     return { success: true, elementId: id, action: 'click', coords: { x: clientX, y: clientY } };
                 }
 
@@ -379,7 +374,6 @@
                         }
                     }
 
-                    console.log(`[MobileAgent] Typed text ("${text}") into element #${id}`);
                     return { success: true, elementId: id, action: 'type', length: text.length };
                 }
 
@@ -421,7 +415,6 @@
          * Evaluate JavaScript code securely in window context
          */
         executeConsole: function (code) {
-            console.log("[MobileAgent] Evaluating console code:", code);
             try {
                 const evalResult = window.eval(code);
                 if (evalResult === undefined) return "undefined";
@@ -478,5 +471,14 @@
         }
     };
 
-    window.__mobileAgent = MobileAgent;
+    try {
+        Object.defineProperty(window, '__mobileAgent', {
+            value: MobileAgent,
+            writable: true,
+            configurable: true,
+            enumerable: false
+        });
+    } catch (_) {
+        window.__mobileAgent = MobileAgent;
+    }
 })();

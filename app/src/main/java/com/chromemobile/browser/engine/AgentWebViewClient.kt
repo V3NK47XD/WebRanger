@@ -21,6 +21,8 @@ class AgentWebViewClient(
     private val onPageFinishedCallback: ((String) -> Unit)? = null
 ) : WebViewClient() {
 
+    var isAgentActive: Boolean = false
+
     private var cachedAgentScript: String? = null
 
     init {
@@ -49,8 +51,7 @@ class AgentWebViewClient(
                         if (!window.__mobileAgent) {
                             $script
                         }
-                    } catch (e) {
-                        console.error('[MobileAgent] Runtime injection error:', e);
+                    } catch (_: Exception) {
                     }
                 })();
                 """.trimIndent(),
@@ -72,6 +73,10 @@ class AgentWebViewClient(
                 canGoForward = view?.canGoForward() ?: false
             )
         }
+
+        view?.let {
+            injectBrowserEnvironmentPolyfills(it)
+        }
     }
 
     override fun onPageFinished(view: WebView?, url: String?) {
@@ -88,8 +93,10 @@ class AgentWebViewClient(
             )
         }
 
-        view?.let {
-            injectAgentRuntime(it)
+        if (isAgentActive && !isChallengeUrl(validUrl)) {
+            view?.let {
+                injectAgentRuntime(it)
+            }
         }
 
         onPageFinishedCallback?.invoke(validUrl)
@@ -139,5 +146,64 @@ class AgentWebViewClient(
             it.copy(isLoading = false)
         }
         return true
+    }
+
+    private fun injectBrowserEnvironmentPolyfills(webView: WebView) {
+        val polyfillScript = """
+            (function() {
+                try {
+                    // Standard window.chrome stub expected by bot detection and web apps
+                    if (!window.chrome) {
+                        Object.defineProperty(window, 'chrome', {
+                            value: {
+                                app: {
+                                    isInstalled: false,
+                                    InstallState: { DISABLED: 'disabled', INSTALLED: 'installed', NOT_INSTALLED: 'not_installed' },
+                                    RunningState: { CANNOT_RUN: 'cannot_run', READY_TO_RUN: 'ready_to_run', RUNNING: 'running' }
+                                },
+                                csi: function() {},
+                                loadTimes: function() {}
+                            },
+                            writable: true,
+                            configurable: true,
+                            enumerable: false
+                        });
+                    }
+
+                    // Normalize Client Hints brands to eliminate "Android WebView" detection token
+                    if (navigator.userAgentData) {
+                        const ua = navigator.userAgent || '';
+                        const chromeMatch = ua.match(/Chrome\/(\d+)/);
+                        const majorVer = chromeMatch ? chromeMatch[1] : '134';
+                        const realBrands = [
+                            { brand: 'Chromium', version: majorVer },
+                            { brand: 'Google Chrome', version: majorVer },
+                            { brand: 'Not(A:Brand', version: '24' }
+                        ];
+                        try {
+                            Object.defineProperty(navigator.userAgentData, 'brands', {
+                                get: function() { return realBrands; },
+                                configurable: true,
+                                enumerable: true
+                            });
+                        } catch (_) {}
+                    }
+                } catch (_) {}
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(polyfillScript, null)
+    }
+
+    companion object {
+        fun isChallengeUrl(url: String?): Boolean {
+            if (url.isNullOrBlank()) return false
+            val lower = url.lowercase()
+            return lower.contains("challenges.cloudflare.com") ||
+                   lower.contains("cdn-cgi/challenge-platform") ||
+                   lower.contains("turnstile") ||
+                   lower.contains("hcaptcha.com") ||
+                   lower.contains("recaptcha") ||
+                   lower.contains("arkoselabs")
+        }
     }
 }
